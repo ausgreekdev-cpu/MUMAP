@@ -1,0 +1,24 @@
+[Unit]
+Description=Multi-Agent Orchestration Platform API
+After=network.target
+
+[Service]
+Type=simple
+User=multiagent
+Group=multiagent
+WorkingDirectory=/opt/multi-agent-platform
+Environment="PATH=/opt/multi-agent-platform/venv/bin"
+EnvironmentFile=/etc/multi-agent-platform/config.env
+ExecStart=/opt/multi-agent-platform/venv/bin/python -m uvicorn backend.main:app --host $HOST --port $PORT
+Restart=always
+RestartSec=5
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/multi-agent-platform /var/log/multi-agent-platform
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
