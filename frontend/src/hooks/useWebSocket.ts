@@ -8,9 +8,16 @@ export function useWebSocket(url: string, token: string | null) {
   const connect = useCallback(() => {
     if (!token) return;
 
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.host;
-    const wsUrl = `${protocol}//${host}/api/v1/ws?token=${token}`;
+    const apiBase = import.meta.env.VITE_API_URL;
+    let wsUrl: string;
+    if (apiBase) {
+      const wsBase = apiBase.replace(/^http/, 'ws');
+      wsUrl = `${wsBase}/api/v1/ws?token=${token}`;
+    } else {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const host = window.location.host;
+      wsUrl = `${protocol}//${host}/api/v1/ws?token=${token}`;
+    }
 
     const ws = new WebSocket(wsUrl);
 

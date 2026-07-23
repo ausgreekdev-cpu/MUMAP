@@ -1,1 +1,7 @@
-/*    /index.html   200
+/sw.js          /sw.js          200
+/manifest.json  /manifest.json  200
+/assets/*       /assets/*       200
+/icon*.png      /icon*.png      200
+/icon.svg       /icon.svg       200
+/screenshot-*.png /screenshot-*.png 200
+/*              /index.html     200
