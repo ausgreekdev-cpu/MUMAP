@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 import asyncio
 import time
 import logging
+from pathlib import Path
 
 from .config import settings
 from .database import init_db
@@ -124,16 +125,6 @@ app.add_exception_handler(Exception, global_exception_handler)
 app.add_exception_handler(RequestValidationError, validation_error_handler)
 
 
-@app.get("/", tags=["System"])
-def root():
-    return {
-        "name": settings.APP_NAME,
-        "version": settings.VERSION,
-        "environment": settings.ENVIRONMENT,
-        "status": "running",
-    }
-
-
 @app.get("/health", tags=["System"])
 def health():
     from .database import check_db_health
@@ -161,3 +152,16 @@ def prometheus_metrics():
 @app.get("/ready", tags=["System"])
 def ready():
     return {"ready": True}
+
+STATIC_DIR = Path(__file__).parent.parent / "frontend" / "dist"
+if STATIC_DIR.exists():
+    from fastapi.staticfiles import StaticFiles
+    from fastapi.responses import FileResponse
+
+    app.mount("/assets", StaticFiles(directory=STATIC_DIR / "assets"), name="static-assets")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def serve_spa(full_path: str):
+        if full_path and (STATIC_DIR / full_path).is_file():
+            return FileResponse(STATIC_DIR / full_path)
+        return FileResponse(STATIC_DIR / "index.html")
