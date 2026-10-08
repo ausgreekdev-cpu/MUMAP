@@ -57,7 +57,7 @@ def get_db_context() -> Session:
 
 def init_db():
     """Initialize database tables."""
-    from .models import user, agent, task, organization, usage
+    from .models import user, agent, task, organization, usage, marketplace
     Base.metadata.create_all(bind=engine)
     logger.info("Database tables created")
 

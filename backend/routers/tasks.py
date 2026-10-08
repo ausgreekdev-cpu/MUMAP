@@ -94,7 +94,7 @@ def update_task(
     if task.status not in [TaskStatus.PENDING.value]:
         raise HTTPException(status_code=400, detail="Can only update pending tasks")
     
-    update_data = task_data.dict(exclude_unset=True)
+    update_data = task_data.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         setattr(task, key, value)
     
@@ -257,5 +257,5 @@ def get_task_logs(
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     
-    logs = db.query(TaskLog).filter(TaskLog.task_id == task_id).order_by(TaskLog.timestamp.desc()).all()
+    logs = db.query(TaskLog).filter(TaskLog.task_id == task_id).order_by(TaskLog.created_at.asc()).all()
     return logs

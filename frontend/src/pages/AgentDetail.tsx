@@ -43,8 +43,9 @@ export function AgentDetail() {
   const [temperature, setTemperature] = useState(0.7);
   const [maxTokens, setMaxTokens] = useState(2048);
   const [showSystemPrompt, setShowSystemPrompt] = useState(false);
-  const [modelProvider] = useState('openai');
-  const [modelName] = useState('gpt-4');
+  const [modelProvider, setModelProvider] = useState('openai');
+  const [modelName, setModelName] = useState('gpt-4o-mini');
+  const [isSavingConfig, setIsSavingConfig] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -65,7 +66,13 @@ export function AgentDetail() {
   const loadAgent = async () => {
     try {
       const response = await agentsAPI.get(Number(id));
-      setAgent(response.data);
+      const data = response.data;
+      setAgent(data);
+      setSystemPrompt(data.system_prompt || '');
+      setTemperature(data.temperature ?? 0.7);
+      setMaxTokens(data.max_tokens ?? 2048);
+      setModelProvider(data.model_provider || 'openai');
+      setModelName(data.model_name || 'gpt-4o-mini');
     } catch (error) {
       toast('error', 'Failed to load agent');
     } finally {
@@ -92,31 +99,59 @@ export function AgentDetail() {
     }
   };
 
+  const handleSaveConfig = async () => {
+    setIsSavingConfig(true);
+    try {
+      await agentsAPI.update(Number(id), {
+        model_provider: modelProvider,
+        model_name: modelName,
+        system_prompt: systemPrompt,
+        temperature,
+        max_tokens: maxTokens,
+      });
+      toast('success', 'Agent configuration saved');
+      loadAgent();
+    } catch (error) {
+      const apiErr = error as { response?: { data?: { detail?: string } } };
+      toast('error', apiErr.response?.data?.detail || 'Failed to save configuration');
+    } finally {
+      setIsSavingConfig(false);
+    }
+  };
+
   const handleExecute = async () => {
     if (!executeDescription.trim() && !executeTaskId) return;
     setIsExecuting(true);
     setExecuteResult('');
     try {
+      let taskId: number;
       if (executeTaskId) {
-        await tasksAPI.assign(Number(executeTaskId), Number(id));
-        const response = await tasksAPI.get(Number(executeTaskId));
-        setExecuteResult(JSON.stringify(response.data, null, 2));
-        toast('success', 'Task assigned to agent successfully');
+        taskId = Number(executeTaskId);
+        await tasksAPI.assign(taskId, Number(id));
       } else {
         const taskResponse = await tasksAPI.create({
           name: `Execute: ${executeDescription.slice(0, 50)}`,
           description: executeDescription,
           priority: 'medium',
         });
-        await tasksAPI.assign(taskResponse.data.id, Number(id));
-        const response = await tasksAPI.get(taskResponse.data.id);
-        setExecuteResult(JSON.stringify(response.data, null, 2));
-        toast('success', 'Task created and assigned successfully');
+        taskId = taskResponse.data.id;
+        await tasksAPI.assign(taskId, Number(id));
+      }
+
+      const response = await agentsAPI.execute(Number(id), taskId);
+      setExecuteResult(JSON.stringify(response.data, null, 2));
+      if (response.data.status === 'completed') {
+        toast('success', 'Task executed successfully');
+      } else {
+        toast('error', response.data.error || 'Execution failed');
       }
       loadPendingTasks();
+      loadAgent();
     } catch (error) {
-      toast('error', 'Failed to execute task');
-      setExecuteResult(JSON.stringify({ error: 'Execution failed' }, null, 2));
+      const apiErr = error as { response?: { data?: { detail?: string } } };
+      const detail = apiErr.response?.data?.detail || 'Execution failed';
+      toast('error', detail);
+      setExecuteResult(JSON.stringify({ error: detail }, null, 2));
     } finally {
       setIsExecuting(false);
     }
@@ -142,11 +177,13 @@ export function AgentDetail() {
     }
 
     try {
+      const history = messages.slice(-20).map((m) => ({
+        role: m.role === 'user' ? 'user' : 'assistant',
+        content: m.content,
+      }));
       const response = await agentsAPI.chat(Number(id), {
         message: content,
-        system_prompt: systemPrompt || undefined,
-        temperature,
-        max_tokens: maxTokens,
+        history,
       });
 
       const agentMessage: ChatMessage = {
@@ -157,18 +194,20 @@ export function AgentDetail() {
       };
       setMessages((prev) => [...prev, agentMessage]);
     } catch (error) {
+      const apiErr = error as { response?: { data?: { detail?: string } } };
+      const detail = apiErr.response?.data?.detail;
       const errorMessage: ChatMessage = {
         id: crypto.randomUUID(),
         role: 'agent',
-        content: 'Sorry, I encountered an error processing your request. Please try again.',
+        content: detail || 'Sorry, I encountered an error processing your request. Please try again.',
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, errorMessage]);
-      toast('error', 'Failed to get agent response');
+      toast('error', detail || 'Failed to get agent response');
     } finally {
       setIsThinking(false);
     }
-  }, [inputValue, isThinking, systemPrompt, temperature, maxTokens, id, toast]);
+  }, [inputValue, isThinking, id, toast, messages]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -341,6 +380,13 @@ export function AgentDetail() {
             <div className="card">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold">Agent Configuration</h2>
+                <button
+                  onClick={handleSaveConfig}
+                  disabled={isSavingConfig}
+                  className="btn btn-primary btn-sm"
+                >
+                  {isSavingConfig ? 'Saving...' : 'Save Configuration'}
+                </button>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -352,12 +398,26 @@ export function AgentDetail() {
                   <p className="mt-1">{agent.max_concurrent_tasks}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-400">Model Provider</p>
-                  <p className="mt-1 capitalize">{modelProvider}</p>
+                  <label className="text-sm text-gray-400">Model Provider</label>
+                  <select
+                    value={modelProvider}
+                    onChange={(e) => setModelProvider(e.target.value)}
+                    className="input mt-1"
+                  >
+                    <option value="openai">OpenAI</option>
+                    <option value="anthropic">Anthropic</option>
+                    <option value="ollama">Ollama (local)</option>
+                  </select>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-400">Model</p>
-                  <p className="mt-1">{modelName}</p>
+                  <label className="text-sm text-gray-400">Model</label>
+                  <input
+                    type="text"
+                    value={modelName}
+                    onChange={(e) => setModelName(e.target.value)}
+                    placeholder="gpt-4o-mini"
+                    className="input mt-1"
+                  />
                 </div>
                 <div className="col-span-2">
                   <p className="text-sm text-gray-400">Description</p>
@@ -389,6 +449,15 @@ export function AgentDetail() {
                     placeholder="Enter a system prompt for this agent..."
                     className="w-full h-32 p-3 bg-[#0a0a0f] border border-white/10 rounded-xl text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#6366f1]/50 resize-none"
                   />
+                  <div className="flex justify-end mt-3">
+                    <button
+                      onClick={handleSaveConfig}
+                      disabled={isSavingConfig}
+                      className="btn btn-secondary btn-sm"
+                    >
+                      {isSavingConfig ? 'Saving...' : 'Save Prompt'}
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -434,6 +503,15 @@ export function AgentDetail() {
                     <span>8192</span>
                   </div>
                 </div>
+              </div>
+              <div className="flex justify-end mt-4">
+                <button
+                  onClick={handleSaveConfig}
+                  disabled={isSavingConfig}
+                  className="btn btn-secondary btn-sm"
+                >
+                  {isSavingConfig ? 'Saving...' : 'Save Parameters'}
+                </button>
               </div>
             </div>
 

@@ -7,7 +7,7 @@ import logging
 
 from .config import settings
 from .database import init_db
-from .routers import auth_router, agents_router, tasks_router, websocket_router, execution_router, usage_router, organizations_router
+from .routers import auth_router, agents_router, tasks_router, websocket_router, execution_router, usage_router, organizations_router, marketplace_router
 from .services.metrics import metrics, generate_latest
 from .services.cache import cache
 
@@ -27,8 +27,9 @@ async def lifespan(app: FastAPI):
     init_db()
     logger.info("Database initialized")
 
+    from .database import SessionLocal
+
     if settings.ENABLE_BILLING:
-        from .database import SessionLocal
         from .services.usage import seed_billing_plans
         db = SessionLocal()
         try:
@@ -38,6 +39,16 @@ async def lifespan(app: FastAPI):
             logger.warning(f"Billing plan seeding skipped: {e}")
         finally:
             db.close()
+
+    from .services.marketplace import seed_marketplace_templates
+    db = SessionLocal()
+    try:
+        seed_marketplace_templates(db)
+        logger.info("Marketplace templates seeded")
+    except Exception as e:
+        logger.warning(f"Marketplace seeding skipped: {e}")
+    finally:
+        db.close()
     
     yield
     
@@ -113,6 +124,7 @@ app.include_router(websocket_router)
 app.include_router(execution_router)
 app.include_router(usage_router)
 app.include_router(organizations_router)
+app.include_router(marketplace_router)
 
 
 @app.get("/", tags=["System"])
@@ -131,9 +143,9 @@ def health():
     from .database import check_db_health
     
     db_healthy = check_db_health()
-    redis_healthy = cache.enabled
-    
-    status = "healthy" if (db_healthy and redis_healthy) else "degraded"
+    redis_healthy = cache.enabled  # optional: cache degrades gracefully without Redis
+
+    status = "healthy" if db_healthy else "degraded"
     
     return {
         "status": status,

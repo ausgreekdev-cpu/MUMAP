@@ -49,8 +49,9 @@ class TaskLogResponse(BaseModel):
     task_id: int
     event: str
     message: str
-    timestamp: datetime
-    
+    level: str = "INFO"
+    created_at: datetime
+
     class Config:
         from_attributes = True
 

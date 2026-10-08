@@ -4,6 +4,7 @@ import { tasksAPI } from '../services/api';
 import { Task } from '../types';
 import { Modal } from '../components/Modal';
 import { EmptyState } from '../components/EmptyState';
+import { useToast } from '../components/Toast';
 
 export function Tasks() {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -18,6 +19,12 @@ export function Tasks() {
     input_data: '',
   });
   const navigate = useNavigate();
+  const { toast } = useToast();
+
+  const errorDetail = (error: unknown, fallback: string) => {
+    const apiErr = error as { response?: { data?: { detail?: string } } };
+    return apiErr.response?.data?.detail || fallback;
+  };
 
   useEffect(() => {
     loadTasks();
@@ -32,7 +39,7 @@ export function Tasks() {
       const response = await tasksAPI.list(params);
       setTasks(response.data.tasks);
     } catch (error) {
-      console.error('Failed to load tasks:', error);
+      toast('error', errorDetail(error, 'Failed to load tasks'));
     } finally {
       setIsLoading(false);
     }
@@ -46,7 +53,7 @@ export function Tasks() {
         try {
           input_data = JSON.parse(formData.input_data);
         } catch {
-          alert('Invalid JSON in input data');
+          toast('warning', 'Invalid JSON in input data');
           return;
         }
       }
@@ -60,27 +67,30 @@ export function Tasks() {
       });
       setShowCreateModal(false);
       setFormData({ name: '', description: '', priority: 'medium', required_capabilities: '', input_data: '' });
+      toast('success', 'Task created');
       loadTasks();
     } catch (error) {
-      console.error('Failed to create task:', error);
+      toast('error', errorDetail(error, 'Failed to create task'));
     }
   };
 
   const handleAutoAssign = async (taskId: number) => {
     try {
       await tasksAPI.autoAssign(taskId);
+      toast('success', 'Task assigned');
       loadTasks();
     } catch (error) {
-      console.error('Failed to auto-assign task:', error);
+      toast('error', errorDetail(error, 'Failed to auto-assign task'));
     }
   };
 
   const handleCancel = async (taskId: number) => {
     try {
       await tasksAPI.cancel(taskId);
+      toast('success', 'Task cancelled');
       loadTasks();
     } catch (error) {
-      console.error('Failed to cancel task:', error);
+      toast('error', errorDetail(error, 'Failed to cancel task'));
     }
   };
 

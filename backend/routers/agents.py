@@ -4,11 +4,19 @@ from typing import Optional
 
 from ..database import get_db
 from ..models.agent import Agent, AgentStatus
-from ..schemas.agent import AgentCreate, AgentUpdate, AgentResponse, AgentListResponse
+from ..schemas.agent import AgentCreate, AgentUpdate, AgentResponse, AgentListResponse, VALID_MODEL_PROVIDERS
 from ..services.auth import get_current_user
 from ..services.websocket import manager
 
 router = APIRouter(prefix="/agents", tags=["agents"])
+
+
+def _validate_provider(provider: Optional[str]) -> None:
+    if provider is not None and provider not in VALID_MODEL_PROVIDERS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid model_provider. Must be one of: {', '.join(VALID_MODEL_PROVIDERS)}",
+        )
 
 
 @router.get("/", response_model=AgentListResponse)
@@ -43,6 +51,8 @@ def create_agent(
     if db.query(Agent).filter(Agent.name == agent_data.name).first():
         raise HTTPException(status_code=400, detail="Agent name already exists")
     
+    _validate_provider(agent_data.model_provider)
+    
     agent = Agent(
         owner_id=current_user.id,
         name=agent_data.name,
@@ -50,6 +60,11 @@ def create_agent(
         role=agent_data.role,
         capabilities=agent_data.capabilities,
         max_concurrent_tasks=agent_data.max_concurrent_tasks,
+        model_provider=agent_data.model_provider,
+        model_name=agent_data.model_name,
+        system_prompt=agent_data.system_prompt,
+        temperature=agent_data.temperature,
+        max_tokens=agent_data.max_tokens,
     )
     db.add(agent)
     db.commit()
@@ -81,7 +96,9 @@ def update_agent(
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
     
-    update_data = agent_data.dict(exclude_unset=True)
+    update_data = agent_data.model_dump(exclude_unset=True)
+    if "model_provider" in update_data:
+        _validate_provider(update_data["model_provider"])
     for key, value in update_data.items():
         setattr(agent, key, value)
     

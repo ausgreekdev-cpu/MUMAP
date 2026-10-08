@@ -60,8 +60,7 @@ elif command -v python3 &> /dev/null; then
     echo "  API Docs: http://localhost:8000/docs"
     echo ""
     
-    cd backend
-    python -m uvicorn main:app --reload --port 8000
+    python -m uvicorn backend.main:app --reload --port 8000
     
 else
     echo "Error: Python 3 or Docker is required"

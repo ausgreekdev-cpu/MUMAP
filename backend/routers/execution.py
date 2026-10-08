@@ -23,9 +23,38 @@ class ExecuteRequest(BaseModel):
     task_id: int
 
 
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
+
 class ChatRequest(BaseModel):
     message: str
     conversation_id: Optional[str] = None
+    history: Optional[list[ChatMessage]] = None
+
+
+def _resolve_provider(agent: Agent) -> str:
+    return agent.model_provider or settings.LLM_DEFAULT_PROVIDER
+
+
+def _require_llm_configured(provider: str) -> None:
+    """Raise a clear 503 when the selected provider has no credentials."""
+    if provider == "openai" and not settings.OPENAI_API_KEY:
+        raise HTTPException(
+            status_code=503,
+            detail="OPENAI_API_KEY is not configured. Set it in the environment to use this agent.",
+        )
+    if provider == "anthropic" and not settings.ANTHROPIC_API_KEY:
+        raise HTTPException(
+            status_code=503,
+            detail="ANTHROPIC_API_KEY is not configured. Set it in the environment to use this agent.",
+        )
+    if provider not in ("openai", "anthropic", "ollama"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported model provider: {provider}",
+        )
 
 
 class ExecutionResponse(BaseModel):
@@ -86,6 +115,8 @@ async def execute_task(
             detail="Agent has no LLM configuration (model_provider or system_prompt required)",
         )
 
+    _require_llm_configured(_resolve_provider(agent))
+
     from ..services.execution.engine import AgentExecutionEngine
     engine = AgentExecutionEngine(db=db, agent=agent, task=task)
 
@@ -139,12 +170,15 @@ async def chat_with_agent(
             detail="Agent has no LLM configuration (model_provider or system_prompt required)",
         )
 
+    provider = _resolve_provider(agent)
+    _require_llm_configured(provider)
+
     conversation_id = body.conversation_id or f"conv_{agent_id}_{current_user.id}"
 
     from ..services.llm.adapter import LLMAdapter
 
     llm = LLMAdapter(
-        provider=agent.model_provider or settings.LLM_DEFAULT_PROVIDER,
+        provider=provider,
         model=agent.model_name or settings.LLM_DEFAULT_MODEL,
         temperature=agent.temperature or 0.7,
         max_tokens=agent.max_tokens or 2048,
@@ -162,10 +196,12 @@ async def chat_with_agent(
     if agent.description:
         system_parts.append(f"\nAbout you: {agent.description}")
 
-    messages = [
-        {"role": "system", "content": "\n".join(system_parts)},
-        {"role": "user", "content": body.message},
-    ]
+    messages = [{"role": "system", "content": "\n".join(system_parts)}]
+    if body.history:
+        for entry in body.history[-20:]:
+            if entry.role in ("user", "assistant") and entry.content:
+                messages.append({"role": entry.role, "content": entry.content})
+    messages.append({"role": "user", "content": body.message})
 
     try:
         response = await asyncio.wait_for(
@@ -177,6 +213,25 @@ async def chat_with_agent(
     except Exception as e:
         logger.exception("Chat with agent %s failed", agent_id)
         raise HTTPException(status_code=500, detail=f"Agent error: {str(e)}")
+
+    try:
+        from ..models.usage import UsageType
+        from ..services.usage import UsageTracker, MODEL_PRICING
+
+        model = agent.model_name or settings.LLM_DEFAULT_MODEL
+        UsageTracker(db).record_usage(
+            user_id=current_user.id,
+            usage_type=UsageType.TOKEN_OUTPUT,
+            quantity=float(response.tokens_used),
+            unit_cost=MODEL_PRICING.get(model, {}).get("output", 0.0),
+            org_id=agent.organization_id,
+            resource_type="agent",
+            resource_id=agent.id,
+            model=model,
+            metadata={"conversation_id": conversation_id},
+        )
+    except Exception:
+        logger.debug("Failed to record chat usage for agent %s", agent_id, exc_info=True)
 
     return ChatResponse(
         response=response.content or "",

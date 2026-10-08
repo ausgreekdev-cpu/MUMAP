@@ -29,9 +29,8 @@ curl -sSL https://raw.githubusercontent.com/yourrepo/install.sh | bash
 ### Option 4: Manual Setup
 ```bash
 # Backend
-cd backend
-pip install -r requirements.txt
-python -m uvicorn main:app --reload
+pip install -r backend/requirements.txt
+python -m uvicorn backend.main:app --reload
 
 # Frontend (optional)
 cd frontend

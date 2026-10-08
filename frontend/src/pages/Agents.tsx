@@ -4,6 +4,7 @@ import { agentsAPI } from '../services/api';
 import { Agent } from '../types';
 import { Modal } from '../components/Modal';
 import { EmptyState } from '../components/EmptyState';
+import { useToast } from '../components/Toast';
 
 export function Agents() {
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -17,6 +18,12 @@ export function Agents() {
     capabilities: '',
   });
   const navigate = useNavigate();
+  const { toast } = useToast();
+
+  const errorDetail = (error: unknown, fallback: string) => {
+    const apiErr = error as { response?: { data?: { detail?: string } } };
+    return apiErr.response?.data?.detail || fallback;
+  };
 
   useEffect(() => {
     loadAgents();
@@ -31,7 +38,7 @@ export function Agents() {
       const response = await agentsAPI.list(params);
       setAgents(response.data.agents);
     } catch (error) {
-      console.error('Failed to load agents:', error);
+      toast('error', errorDetail(error, 'Failed to load agents'));
     } finally {
       setIsLoading(false);
     }
@@ -48,9 +55,10 @@ export function Agents() {
       });
       setShowCreateModal(false);
       setFormData({ name: '', description: '', role: 'worker', capabilities: '' });
+      toast('success', 'Agent created');
       loadAgents();
     } catch (error) {
-      console.error('Failed to create agent:', error);
+      toast('error', errorDetail(error, 'Failed to create agent'));
     }
   };
 
@@ -58,9 +66,10 @@ export function Agents() {
     if (!confirm('Are you sure you want to delete this agent?')) return;
     try {
       await agentsAPI.delete(id);
+      toast('success', 'Agent deleted');
       loadAgents();
     } catch (error) {
-      console.error('Failed to delete agent:', error);
+      toast('error', errorDetail(error, 'Failed to delete agent'));
     }
   };
 

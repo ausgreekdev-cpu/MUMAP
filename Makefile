@@ -38,11 +38,16 @@ clean:
 
 # Development mode (run locally)
 dev:
-	@cd backend && python3 -m uvicorn main:app --reload --port 8000
+	@python3 -m uvicorn backend.main:app --reload --port 8000
 
 # Run tests
 test:
 	@python3 tests/test_agents.py
+	@python3 -m pytest backend/tests -q
+
+# Backend API tests only
+test-backend:
+	@python3 -m pytest backend/tests -q
 
 # Run examples
 example1:
@@ -56,6 +61,7 @@ help:
 	@echo "  make package  - Create installable package"
 	@echo "  make install  - Install to system"
 	@echo "  make uninstall - Remove from system"
+	@echo "  make test     - Run all tests (legacy + pytest)"
 	@echo "  make clean    - Clean build artifacts"
 	@echo "  make dev      - Run development server"
 	@echo "  make test     - Run tests"

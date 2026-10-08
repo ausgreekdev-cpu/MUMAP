@@ -2,13 +2,20 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { tasksAPI } from '../services/api';
 import { Task, TaskLog } from '../types';
+import { useToast } from '../components/Toast';
 
 export function TaskDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [task, setTask] = useState<Task | null>(null);
   const [logs, setLogs] = useState<TaskLog[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  const errorDetail = (error: unknown, fallback: string) => {
+    const apiErr = error as { response?: { data?: { detail?: string } } };
+    return apiErr.response?.data?.detail || fallback;
+  };
 
   useEffect(() => {
     loadTask();
@@ -23,7 +30,7 @@ export function TaskDetail() {
       setTask(taskRes.data);
       setLogs(logsRes.data);
     } catch (error) {
-      console.error('Failed to load task:', error);
+      toast('error', errorDetail(error, 'Failed to load task'));
     } finally {
       setIsLoading(false);
     }
@@ -32,18 +39,20 @@ export function TaskDetail() {
   const handleAutoAssign = async () => {
     try {
       await tasksAPI.autoAssign(Number(id));
+      toast('success', 'Task assigned');
       loadTask();
     } catch (error) {
-      console.error('Failed to auto-assign:', error);
+      toast('error', errorDetail(error, 'Failed to auto-assign'));
     }
   };
 
   const handleCancel = async () => {
     try {
       await tasksAPI.cancel(Number(id));
+      toast('success', 'Task cancelled');
       loadTask();
     } catch (error) {
-      console.error('Failed to cancel:', error);
+      toast('error', errorDetail(error, 'Failed to cancel'));
     }
   };
 
@@ -51,9 +60,10 @@ export function TaskDetail() {
     if (!confirm('Are you sure you want to delete this task?')) return;
     try {
       await tasksAPI.delete(Number(id));
+      toast('success', 'Task deleted');
       navigate('/tasks');
     } catch (error) {
-      console.error('Failed to delete:', error);
+      toast('error', errorDetail(error, 'Failed to delete'));
     }
   };
 
@@ -266,7 +276,7 @@ export function TaskDetail() {
                     </div>
                     <p className="text-gray-400 ml-3.5 mt-1">{log.message}</p>
                     <p className="text-gray-500 text-xs ml-3.5">
-                      {new Date(log.timestamp).toLocaleString()}
+                      {new Date(log.created_at).toLocaleString()}
                     </p>
                   </div>
                 ))}

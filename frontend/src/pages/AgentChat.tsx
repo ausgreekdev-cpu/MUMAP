@@ -114,8 +114,13 @@ export function AgentChat() {
     }
 
     try {
+      const history = messages.slice(-20).map((m) => ({
+        role: m.role === 'user' ? 'user' : 'assistant',
+        content: m.content,
+      }));
       const response = await agentsAPI.chat(Number(selectedAgentId), {
         message: content,
+        history,
       });
 
       const agentMessage: ChatMessage = {
@@ -126,18 +131,20 @@ export function AgentChat() {
       };
       setMessages((prev) => [...prev, agentMessage]);
     } catch (error) {
+      const apiErr = error as { response?: { data?: { detail?: string } } };
+      const detail = apiErr.response?.data?.detail;
       const errorMessage: ChatMessage = {
         id: crypto.randomUUID(),
         role: 'agent',
-        content: 'Sorry, I encountered an error processing your request. Please try again.',
+        content: detail || 'Sorry, I encountered an error processing your request. Please try again.',
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, errorMessage]);
-      toast('error', 'Failed to get agent response');
+      toast('error', detail || 'Failed to get agent response');
     } finally {
       setIsThinking(false);
     }
-  }, [inputValue, isThinking, selectedAgentId, toast]);
+  }, [inputValue, isThinking, selectedAgentId, toast, messages]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {

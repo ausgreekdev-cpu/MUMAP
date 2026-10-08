@@ -19,12 +19,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const storedUser = localStorage.getItem('user');
-    if (storedUser && token) {
-      setUser(JSON.parse(storedUser));
-    }
-    setIsLoading(false);
-  }, [token]);
+    const validateSession = async () => {
+      const storedUser = localStorage.getItem('user');
+      if (storedUser && token) {
+        setUser(JSON.parse(storedUser));
+        try {
+          const response = await authAPI.getMe();
+          localStorage.setItem('user', JSON.stringify(response.data));
+          setUser(response.data);
+        } catch {
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          setToken(null);
+          setUser(null);
+        }
+      }
+      setIsLoading(false);
+    };
+    validateSession();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const login = async (email: string, password: string) => {
     const response = await authAPI.login(email, password);
@@ -38,6 +52,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const register = async (email: string, username: string, password: string) => {
     await authAPI.register(email, username, password);
+    // Registration doesn't return a token - log in so the user lands authenticated.
+    await login(email, password);
   };
 
   const logout = () => {

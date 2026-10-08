@@ -13,7 +13,9 @@ from sqlalchemy.orm import Session
 from ...config import settings
 from ...models.agent import Agent, AgentStatus
 from ...models.task import Task, TaskStatus, TaskLog
+from ...models.usage import UsageType
 from ..llm.adapter import LLMAdapter, ToolCall, ToolDefinition, LLMToolResponse
+from ..usage import UsageTracker, MODEL_PRICING, TASK_RUN_COST
 
 logger = logging.getLogger(__name__)
 
@@ -225,6 +227,42 @@ class AgentExecutionEngine:
         except Exception as e:
             logger.error("Failed to create task log: %s", e)
 
+    def _record_usage(self, state: ExecutionState):
+        """Meter task runs and LLM tokens. Failures here must never break execution."""
+        try:
+            user_id = self.task.creator_id or self.agent.owner_id
+            if not user_id:
+                return
+            model = self.agent.model_name or settings.LLM_DEFAULT_MODEL
+            org_id = self.agent.organization_id
+            tracker = UsageTracker(self.db)
+            tracker.record_usage(
+                user_id=user_id,
+                usage_type=UsageType.TASK_RUN,
+                quantity=1,
+                unit_cost=TASK_RUN_COST,
+                org_id=org_id,
+                resource_type="task",
+                resource_id=self.task.id,
+                metadata={"agent_id": self.agent.id, "status": self.task.status},
+            )
+            if state.total_tokens > 0:
+                # Adapter reports combined input+output tokens; metered at output rate.
+                pricing = MODEL_PRICING.get(model, {})
+                tracker.record_usage(
+                    user_id=user_id,
+                    usage_type=UsageType.TOKEN_OUTPUT,
+                    quantity=float(state.total_tokens),
+                    unit_cost=pricing.get("output", 0.0),
+                    org_id=org_id,
+                    resource_type="task",
+                    resource_id=self.task.id,
+                    model=model,
+                    metadata={"agent_id": self.agent.id, "combined_tokens": True},
+                )
+        except Exception:
+            logger.exception("Failed to record usage for task %s", self.task.id)
+
     def _update_task(self, status: TaskStatus, output: dict | None = None, error: str | None = None):
         try:
             self.task.status = status.value
@@ -401,6 +439,7 @@ class AgentExecutionEngine:
                 })
 
             self.task.tokens_used = state.total_tokens
+            self._record_usage(state)
             self.db.commit()
 
             return {

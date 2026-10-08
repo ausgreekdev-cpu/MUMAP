@@ -25,6 +25,8 @@ class UsageSummary(BaseModel):
     period_start: str
     period_end: str
     total_cost: float
+    total_tokens: int = 0
+    total_tasks: int = 0
     by_type: dict[str, float]
     by_model: dict[str, dict]
 

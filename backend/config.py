@@ -1,6 +1,8 @@
 from pydantic_settings import BaseSettings
+from pydantic import field_validator
 from functools import lru_cache
 from typing import Optional
+import json
 import os
 
 
@@ -39,6 +41,23 @@ class Settings(BaseSettings):
     # CORS
     CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:3000"]
     CORS_ALLOW_CREDENTIALS: bool = True
+
+    @field_validator("CORS_ORIGINS", mode="before")
+    @classmethod
+    def _parse_cors_origins(cls, value):
+        if isinstance(value, str):
+            value = value.strip()
+            if not value:
+                return []
+            if value.startswith("["):
+                try:
+                    parsed = json.loads(value)
+                    if isinstance(parsed, list):
+                        return parsed
+                except json.JSONDecodeError:
+                    pass
+            return [origin.strip() for origin in value.split(",") if origin.strip()]
+        return value
     
     # WebSocket
     WS_MAX_CONNECTIONS: int = 100
@@ -94,7 +113,27 @@ class Settings(BaseSettings):
 
 @lru_cache()
 def get_settings() -> Settings:
+    _normalize_cors_env()
     return Settings()
 
 
+def _normalize_cors_env() -> None:
+    """Accept comma-separated CORS_ORIGINS from the environment.
+
+    pydantic-settings JSON-decodes complex fields before validators run, so a
+    plain comma-separated value (as used in docker-compose/README) would raise
+    SettingsError at import time unless we convert it to a JSON array first.
+    """
+    raw = os.environ.get("CORS_ORIGINS")
+    if raw is None:
+        return
+    raw = raw.strip()
+    if not raw or raw.startswith("["):
+        return
+    os.environ["CORS_ORIGINS"] = json.dumps(
+        [origin.strip() for origin in raw.split(",") if origin.strip()]
+    )
+
+
+_normalize_cors_env()
 settings = get_settings()

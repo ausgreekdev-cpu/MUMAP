@@ -13,11 +13,16 @@ export interface Agent {
   description: string;
   role: string;
   capabilities: string[];
-  status: 'idle' | 'busy' | 'error' | 'offline';
+  status: 'idle' | 'busy' | 'error' | 'offline' | 'maintenance';
   max_concurrent_tasks: number;
   current_task_id: number | null;
   completed_tasks_count: number;
   failed_tasks_count: number;
+  model_provider: string | null;
+  model_name: string | null;
+  system_prompt: string | null;
+  temperature: number;
+  max_tokens: number;
   created_at: string;
   updated_at: string | null;
 }
@@ -45,7 +50,8 @@ export interface TaskLog {
   task_id: number;
   event: string;
   message: string;
-  timestamp: string;
+  level: string;
+  created_at: string;
 }
 
 export interface Stats {
@@ -115,22 +121,73 @@ export interface BillingPlan {
 }
 
 export interface UsageSummary {
-  period: string;
+  period_start: string;
+  period_end: string;
   total_cost: number;
   total_tokens: number;
   total_tasks: number;
-  by_type: Record<string, { quantity: number; cost: number }>;
-  by_model: Record<string, { tokens: number; cost: number }>;
+  by_type: Record<string, number>;
+  by_model: Record<string, { total_cost: number; input_tokens: number; output_tokens: number }>;
 }
 
 export interface UsageRecord {
   id: number;
+  user_id: number;
+  org_id: number | null;
   usage_type: string;
   quantity: number;
   unit_cost: number;
   total_cost: number;
-  resource_type: string;
+  resource_type: string | null;
   resource_id: number | null;
   model: string | null;
+  usage_metadata: Record<string, unknown>;
   created_at: string;
+}
+
+export interface InvoiceLineItem {
+  description: string;
+  quantity: number;
+  unit_cost: number;
+  total: number;
+}
+
+export interface Invoice {
+  id: number;
+  user_id: number;
+  org_id: number | null;
+  period_start: string;
+  period_end: string;
+  total_cost: number;
+  currency: string;
+  status: string;
+  line_items: InvoiceLineItem[];
+  created_at: string;
+  paid_at: string | null;
+}
+
+export interface AgentTemplate {
+  id: number;
+  slug: string;
+  name: string;
+  description: string;
+  category: string;
+  author: string;
+  price_label: string;
+  price_cents: number;
+  rating: number;
+  installs_count: number;
+  icon_key: string;
+  capabilities: string[];
+  model_provider: string | null;
+  model_name: string | null;
+  is_public: boolean;
+  created_at: string;
+}
+
+export interface TemplateInstallation {
+  id: number;
+  template_id: number;
+  agent_id: number | null;
+  installed_at: string;
 }

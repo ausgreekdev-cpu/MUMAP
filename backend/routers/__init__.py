@@ -5,6 +5,7 @@ from .websocket import router as websocket_router
 from .execution import router as execution_router
 from .usage import router as usage_router
 from .organizations import router as organizations_router
+from .marketplace import router as marketplace_router
 
 __all__ = [
     "auth_router",
@@ -14,4 +15,5 @@ __all__ = [
     "execution_router",
     "usage_router",
     "organizations_router",
+    "marketplace_router",
 ]

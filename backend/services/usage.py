@@ -76,26 +76,33 @@ class UsageTracker:
         period_end: datetime,
         org_id: Optional[int] = None,
     ) -> dict:
+        # Usage is always counted per user; org_id only selects the billing plan.
         query = self.db.query(UsageRecord).filter(
             UsageRecord.user_id == user_id,
             UsageRecord.created_at >= period_start,
             UsageRecord.created_at < period_end,
         )
-        if org_id is not None:
-            query = query.filter(UsageRecord.org_id == org_id)
 
         records = query.all()
 
         total_cost = 0.0
+        total_tokens = 0.0
+        total_tasks = 0.0
         by_type: dict[str, float] = {}
         for r in records:
             total_cost += r.total_cost
             by_type[r.usage_type] = by_type.get(r.usage_type, 0.0) + r.total_cost
+            if r.usage_type in (UsageType.TOKEN_INPUT.value, UsageType.TOKEN_OUTPUT.value):
+                total_tokens += r.quantity
+            elif r.usage_type == UsageType.TASK_RUN.value:
+                total_tasks += r.quantity
 
         return {
             "period_start": period_start.isoformat(),
             "period_end": period_end.isoformat(),
             "total_cost": round(total_cost, 6),
+            "total_tokens": int(total_tokens),
+            "total_tasks": int(total_tasks),
             "by_type": {k: round(v, 6) for k, v in by_type.items()},
         }
 
@@ -112,8 +119,6 @@ class UsageTracker:
             UsageRecord.created_at < period_end,
             UsageRecord.usage_type.in_([UsageType.TOKEN_INPUT.value, UsageType.TOKEN_OUTPUT.value]),
         )
-        if org_id is not None:
-            query = query.filter(UsageRecord.org_id == org_id)
 
         records = query.all()
 
@@ -147,8 +152,6 @@ class UsageTracker:
             UsageRecord.created_at >= period_start,
             UsageRecord.created_at < period_end,
         )
-        if org_id is not None:
-            token_query = token_query.filter(UsageRecord.org_id == org_id)
         total_tokens = float(token_query.scalar() or 0.0)
 
         task_query = self.db.query(sql_func.coalesce(sql_func.sum(UsageRecord.quantity), 0.0)).filter(
@@ -157,8 +160,6 @@ class UsageTracker:
             UsageRecord.created_at >= period_start,
             UsageRecord.created_at < period_end,
         )
-        if org_id is not None:
-            task_query = task_query.filter(UsageRecord.org_id == org_id)
         total_tasks = float(task_query.scalar() or 0.0)
 
         plan = self._get_plan_for_user(org_id)
@@ -192,13 +193,10 @@ class UsageTracker:
     def _get_plan_for_user(self, org_id: Optional[int]) -> Optional[BillingPlan]:
         if org_id is None:
             return None
-        try:
-            from ..models.user import Organization
-            org = self.db.query(Organization).filter(Organization.id == org_id).first()
-            if org and hasattr(org, "plan") and org.plan:
-                return self.db.query(BillingPlan).filter(BillingPlan.name == org.plan).first()
-        except Exception:
-            pass
+        from ..models.organization import Organization
+        org = self.db.query(Organization).filter(Organization.id == org_id).first()
+        if org and org.plan:
+            return self.db.query(BillingPlan).filter(BillingPlan.name == org.plan).first()
         return None
 
     def generate_invoice(

@@ -18,11 +18,13 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Handle auth errors
+// Handle auth errors (don't hijack login/register - their 401s are expected feedback)
+const AUTH_PATHS = ['/auth/login', '/auth/register'];
+
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 && !AUTH_PATHS.some((p) => error.config?.url?.includes(p))) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       window.location.href = '/login';
@@ -52,10 +54,10 @@ export const agentsAPI = {
   delete: (id: number) => api.delete(`/agents/${id}`),
   updateStatus: (id: number, status: string) =>
     api.post(`/agents/${id}/status`, null, { params: { status } }),
-  chat: (id: number, data: { message: string; system_prompt?: string; temperature?: number; max_tokens?: number }) =>
-    api.post(`/agents/${id}/chat`, data),
-  execute: (id: number, data: { task_id?: number; description: string }) =>
-    api.post(`/agents/${id}/execute`, data),
+  chat: (id: number, data: { message: string; conversation_id?: string; history?: { role: string; content: string }[] }) =>
+    api.post(`/execution/agents/${id}/chat`, data),
+  execute: (id: number, taskId: number) =>
+    api.post(`/execution/agents/${id}/execute`, { task_id: taskId }),
 };
 
 // Tasks API
@@ -105,9 +107,19 @@ export const usageAPI = {
 };
 
 export const executionAPI = {
-  execute: (agentId: number, taskId: number) => api.post(`/execution/agents/${agentId}/execute`, null, { params: { task_id: taskId } }),
-  chat: (agentId: number, message: string) => api.post(`/execution/agents/${agentId}/chat`, { message }),
+  execute: (agentId: number, taskId: number) =>
+    api.post(`/execution/agents/${agentId}/execute`, { task_id: taskId }),
+  chat: (agentId: number, message: string, opts?: { conversation_id?: string; history?: { role: string; content: string }[] }) =>
+    api.post(`/execution/agents/${agentId}/chat`, { message, ...opts }),
   executionLog: (taskId: number) => api.get(`/execution/tasks/${taskId}/execution-log`),
+};
+
+export const marketplaceAPI = {
+  templates: (params?: { search?: string; category?: string; skip?: number; limit?: number }) =>
+    api.get('/marketplace/templates', { params }),
+  template: (id: number) => api.get(`/marketplace/templates/${id}`),
+  install: (id: number) => api.post(`/marketplace/templates/${id}/install`, {}),
+  installed: () => api.get('/marketplace/installed'),
 };
 
 export default api;
