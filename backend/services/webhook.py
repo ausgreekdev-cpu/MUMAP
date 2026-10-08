@@ -9,6 +9,7 @@ import logging
 
 from ..models.user import Webhook
 from ..config import settings
+from ..utils import utcnow
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +69,7 @@ class WebhookService:
         
         payload = {
             "event": event,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": utcnow().isoformat(),
             "data": data,
         }
         
@@ -100,7 +101,7 @@ class WebhookService:
                 success = 200 <= response.status_code < 300
                 
                 if success:
-                    webhook.last_triggered_at = datetime.utcnow()
+                    webhook.last_triggered_at = utcnow()
                     webhook.failure_count = 0
                 else:
                     webhook.failure_count += 1

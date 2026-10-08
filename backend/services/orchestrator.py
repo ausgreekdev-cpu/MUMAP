@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from ..models.agent import Agent, AgentStatus
 from ..models.task import Task, TaskStatus, TaskLog
+from ..utils import utcnow
 
 
 class OrchestratorService:
@@ -54,7 +55,7 @@ class OrchestratorService:
         # Update task
         task.assigned_to = agent.id
         task.status = TaskStatus.ASSIGNED.value
-        task.assigned_at = datetime.utcnow()
+        task.assigned_at = utcnow()
         
         # Update agent
         agent.status = AgentStatus.BUSY.value
@@ -91,7 +92,7 @@ class OrchestratorService:
         
         task.status = TaskStatus.COMPLETED.value
         task.output_data = output_data
-        task.completed_at = datetime.utcnow()
+        task.completed_at = utcnow()
         
         # Update agent
         if task.assigned_to:
@@ -121,7 +122,7 @@ class OrchestratorService:
         
         task.status = TaskStatus.FAILED.value
         task.error_message = error_message
-        task.completed_at = datetime.utcnow()
+        task.completed_at = utcnow()
         
         # Update agent
         if task.assigned_to:

@@ -36,6 +36,105 @@ class LLMToolResponse:
     latency_ms: float = 0.0
 
 
+def _convert_messages_for_anthropic(
+    messages: list[dict[str, Any]],
+) -> tuple[str, list[dict[str, Any]]]:
+    """Convert OpenAI-style chat messages to Anthropic's message format.
+
+    The execution engine emits OpenAI-shaped tool traffic (assistant messages
+    with ``tool_calls`` followed by ``role: "tool"`` results). Anthropic instead
+    requires ``tool_use`` blocks on the assistant message and ``tool_result``
+    blocks inside the immediately following user message, with strictly
+    alternating roles starting with ``user``.
+
+    Returns ``(system_text, api_messages)``.
+    """
+    system_parts: list[str] = []
+    converted: list[dict[str, Any]] = []
+    pending_tool_results: list[dict[str, Any]] = []
+
+    def as_blocks(content: Any) -> list[dict[str, Any]]:
+        if content is None:
+            return []
+        if isinstance(content, str):
+            return [{"type": "text", "text": content}] if content else []
+        if isinstance(content, list):
+            return list(content)
+        return [{"type": "text", "text": str(content)}]
+
+    def push(role: str, blocks: list[dict[str, Any]]) -> None:
+        if not blocks:
+            return
+        if converted and converted[-1]["role"] == role:
+            converted[-1]["content"].extend(blocks)
+        else:
+            converted.append({"role": role, "content": blocks})
+
+    for msg in messages:
+        role = msg.get("role")
+
+        if role == "system":
+            text = msg.get("content") or ""
+            if text:
+                system_parts.append(text)
+            continue
+
+        if role == "tool":
+            pending_tool_results.append(
+                {
+                    "type": "tool_result",
+                    "tool_use_id": msg.get("tool_call_id") or msg.get("id") or "",
+                    "content": msg.get("content") or "(no result)",
+                }
+            )
+            continue
+
+        # tool_result blocks must immediately follow the assistant tool_use
+        # message, so flush them as a user message before other content.
+        if pending_tool_results:
+            push("user", pending_tool_results)
+            pending_tool_results = []
+
+        if role == "assistant":
+            blocks = as_blocks(msg.get("content"))
+            for tc in msg.get("tool_calls") or []:
+                fn = tc.get("function") or {}
+                raw_args = fn.get("arguments", "{}")
+                if isinstance(raw_args, str):
+                    try:
+                        args = json.loads(raw_args)
+                    except (json.JSONDecodeError, TypeError):
+                        args = {}
+                elif isinstance(raw_args, dict):
+                    args = raw_args
+                else:
+                    args = {}
+                blocks.append(
+                    {
+                        "type": "tool_use",
+                        "id": tc.get("id") or "",
+                        "name": fn.get("name") or "",
+                        "input": args,
+                    }
+                )
+            push("assistant", blocks)
+        else:
+            push("user", as_blocks(msg.get("content")))
+
+    if pending_tool_results:
+        push("user", pending_tool_results)
+
+    # Anthropic requires the conversation to start with a user message.
+    if not converted:
+        converted.append({"role": "user", "content": [{"type": "text", "text": "."}]})
+    elif converted[0]["role"] != "user":
+        converted.insert(
+            0, {"role": "user", "content": [{"type": "text", "text": "Continue."}]}
+        )
+
+    return "\n".join(system_parts), converted
+
+
 class LLMAdapter:
     def __init__(
         self,
@@ -224,13 +323,7 @@ class LLMAdapter:
     ) -> LLMToolResponse:
         client = self._get_client()
 
-        system_text = ""
-        api_messages = []
-        for msg in messages:
-            if msg["role"] == "system":
-                system_text += msg["content"] + "\n"
-            else:
-                api_messages.append(msg)
+        system_text, api_messages = _convert_messages_for_anthropic(messages)
 
         kwargs: dict[str, Any] = {
             "model": self.model,

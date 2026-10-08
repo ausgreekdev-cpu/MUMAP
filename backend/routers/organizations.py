@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models.user import User
+from ..utils import utcnow
 from ..models.organization import Organization, OrgMember, OrgInvite, OrgRole, ORG_ROLE_HIERARCHY, PLAN_DEFAULTS
 from ..schemas.organization import (
     OrganizationCreate, OrganizationUpdate, OrganizationResponse,
@@ -241,7 +242,7 @@ def invite_member(
             raise HTTPException(status_code=400, detail="Organization member limit reached")
 
     token = uuid.uuid4().hex
-    expires_at = datetime.utcnow() + timedelta(days=7)
+    expires_at = utcnow() + timedelta(days=7)
 
     invite = OrgInvite(
         org_id=org_id,
@@ -281,7 +282,7 @@ def accept_invite(
     if invite.accepted_at is not None:
         raise HTTPException(status_code=400, detail="Invite already accepted")
 
-    if invite.expires_at < datetime.utcnow():
+    if invite.expires_at < utcnow():
         raise HTTPException(status_code=400, detail="Invite has expired")
 
     if invite.email != current_user.email:
@@ -291,7 +292,7 @@ def accept_invite(
     if existing:
         raise HTTPException(status_code=400, detail="Already a member of this organization")
 
-    invite.accepted_at = datetime.utcnow()
+    invite.accepted_at = utcnow()
 
     membership = OrgMember(
         org_id=org_id,

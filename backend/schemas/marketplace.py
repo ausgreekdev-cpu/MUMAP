@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from datetime import datetime
 from typing import Optional
 
@@ -21,8 +21,7 @@ class TemplateResponse(BaseModel):
     is_public: bool
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class TemplateListResponse(BaseModel):
@@ -36,8 +35,7 @@ class InstallationResponse(BaseModel):
     agent_id: Optional[int] = None
     installed_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class InstallationListResponse(BaseModel):

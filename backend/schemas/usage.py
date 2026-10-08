@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from datetime import datetime
 from typing import Optional
 
@@ -17,8 +17,7 @@ class UsageRecordResponse(BaseModel):
     usage_metadata: dict = {}
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class UsageSummary(BaseModel):
@@ -45,8 +44,7 @@ class BillingPlanResponse(BaseModel):
     is_active: bool
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class InvoiceLineItem(BaseModel):
@@ -71,8 +69,7 @@ class InvoiceResponse(BaseModel):
     created_at: datetime
     paid_at: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class InvoiceListResponse(BaseModel):

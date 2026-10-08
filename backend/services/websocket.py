@@ -3,6 +3,8 @@ from typing import Dict, Set
 from fastapi import WebSocket
 from datetime import datetime
 
+from ..utils import utcnow
+
 
 class ConnectionManager:
     """Manages WebSocket connections for real-time updates."""
@@ -49,21 +51,21 @@ class ConnectionManager:
         await self.broadcast({
             "type": "agent_update",
             "data": agent_data,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": utcnow().isoformat()
         })
     
     async def notify_task_update(self, task_data: dict):
         await self.broadcast({
             "type": "task_update",
             "data": task_data,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": utcnow().isoformat()
         })
     
     async def notify_log(self, log_data: dict):
         await self.broadcast({
             "type": "log",
             "data": log_data,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": utcnow().isoformat()
         })
 
 

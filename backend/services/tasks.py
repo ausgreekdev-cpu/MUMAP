@@ -101,8 +101,9 @@ def cleanup_expired_tasks():
     db = SessionLocal()
     try:
         # Find stale in-progress tasks (stuck for > 1 hour)
-        from datetime import datetime, timedelta
-        threshold = datetime.utcnow() - timedelta(hours=1)
+        from datetime import timedelta
+        from ..utils import utcnow
+        threshold = utcnow() - timedelta(hours=1)
         
         stale_tasks = db.query(Task).filter(
             Task.status == TaskStatus.IN_PROGRESS.value,
