@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, ConfigDict
+from pydantic import BaseModel, EmailStr, ConfigDict, Field
 from datetime import datetime
 from typing import Optional
 
@@ -24,6 +24,23 @@ class UserResponse(UserBase):
     created_at: datetime
     
     model_config = ConfigDict(from_attributes=True)
+
+
+class UserProfileUpdate(BaseModel):
+    username: Optional[str] = Field(default=None, min_length=3, max_length=100)
+    email: Optional[EmailStr] = None
+
+
+class PasswordChange(BaseModel):
+    current_password: str
+    new_password: str
+
+
+class PreferencesResponse(BaseModel):
+    task_completed: bool
+    task_failed: bool
+    agent_offline: bool
+    weekly_summary: bool
 
 
 class Token(BaseModel):

@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ReactNode } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { WebSocketProvider } from './context/WebSocketContext';
 import { ToastProvider } from './components/Toast';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Layout } from './components/Layout';
@@ -50,6 +51,7 @@ function App() {
     <ErrorBoundary>
       <AuthProvider>
         <ToastProvider>
+          <WebSocketProvider>
           <BrowserRouter>
           <Routes>
             {/* Public routes */}
@@ -142,8 +144,9 @@ function App() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </BrowserRouter>
-      </ToastProvider>
-    </AuthProvider>
+          </WebSocketProvider>
+        </ToastProvider>
+      </AuthProvider>
     </ErrorBoundary>
   );
 }

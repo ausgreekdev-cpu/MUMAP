@@ -5,6 +5,7 @@ import { Agent } from '../types';
 import { Modal } from '../components/Modal';
 import { EmptyState } from '../components/EmptyState';
 import { useToast } from '../components/Toast';
+import { useWebSocketContext } from '../context/WebSocketContext';
 
 export function Agents() {
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -19,6 +20,7 @@ export function Agents() {
   });
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { lastMessage } = useWebSocketContext();
 
   const errorDetail = (error: unknown, fallback: string) => {
     const apiErr = error as { response?: { data?: { detail?: string } } };
@@ -28,6 +30,14 @@ export function Agents() {
   useEffect(() => {
     loadAgents();
   }, [filter]);
+
+  // Live refresh when an agent changes anywhere in the app
+  useEffect(() => {
+    if (lastMessage?.type === 'agent_update') {
+      loadAgents();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastMessage]);
 
   const loadAgents = async () => {
     try {

@@ -2,7 +2,7 @@ import { useState, useEffect, ReactNode } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { useAuth } from '../context/AuthContext';
-import { useWebSocket } from '../hooks/useWebSocket';
+import { useWebSocketContext } from '../context/WebSocketContext';
 
 interface LayoutProps {
   children: ReactNode;
@@ -12,7 +12,7 @@ export function Layout({ children }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const { user, logout } = useAuth();
-  const { isConnected } = useWebSocket(localStorage.getItem('token'));
+  const { isConnected } = useWebSocketContext();
   const location = useLocation();
 
   // Close sidebar on route change (mobile)

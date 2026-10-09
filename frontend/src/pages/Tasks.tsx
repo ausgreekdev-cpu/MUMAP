@@ -5,6 +5,7 @@ import { Task } from '../types';
 import { Modal } from '../components/Modal';
 import { EmptyState } from '../components/EmptyState';
 import { useToast } from '../components/Toast';
+import { useWebSocketContext } from '../context/WebSocketContext';
 
 export function Tasks() {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -20,6 +21,7 @@ export function Tasks() {
   });
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { lastMessage } = useWebSocketContext();
 
   const errorDetail = (error: unknown, fallback: string) => {
     const apiErr = error as { response?: { data?: { detail?: string } } };
@@ -29,6 +31,14 @@ export function Tasks() {
   useEffect(() => {
     loadTasks();
   }, [filter]);
+
+  // Live refresh when a task changes anywhere in the app
+  useEffect(() => {
+    if (lastMessage?.type === 'task_update') {
+      loadTasks();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastMessage]);
 
   const loadTasks = async () => {
     try {

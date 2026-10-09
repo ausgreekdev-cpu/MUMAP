@@ -1,21 +1,58 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { agentsAPI, tasksAPI } from '../services/api';
+import api, { agentsAPI, tasksAPI } from '../services/api';
 import { Stats } from '../types';
 import { StatsCard } from '../components/StatsCard';
 import { EmptyState } from '../components/EmptyState';
 import { BarChart } from '../components/Charts';
 import { useToast } from '../components/Toast';
+import { useWebSocketContext } from '../context/WebSocketContext';
+
+interface HealthState {
+  status: string;
+  checks: Record<string, string>;
+}
 
 export function Dashboard() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [recentTasks, setRecentTasks] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [health, setHealth] = useState<HealthState | null>(null);
+  const [healthDown, setHealthDown] = useState(false);
+  const [healthCheckedAt, setHealthCheckedAt] = useState<string>('');
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { lastMessage, isConnected } = useWebSocketContext();
 
   useEffect(() => {
     loadData();
+  }, []);
+
+  // Live refresh when agents/tasks change elsewhere
+  useEffect(() => {
+    if (lastMessage && (lastMessage.type === 'agent_update' || lastMessage.type === 'task_update')) {
+      loadData();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastMessage]);
+
+  const loadHealth = async () => {
+    try {
+      const res = await api.get('/health');
+      setHealth(res.data);
+      setHealthDown(false);
+    } catch {
+      setHealth(null);
+      setHealthDown(true);
+    } finally {
+      setHealthCheckedAt(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+    }
+  };
+
+  useEffect(() => {
+    loadHealth();
+    const interval = setInterval(loadHealth, 60000);
+    return () => clearInterval(interval);
   }, []);
 
   const loadData = async () => {
@@ -269,28 +306,62 @@ export function Dashboard() {
 
           {/* Platform Status */}
           <div className="card">
-            <h2 className="text-lg font-semibold mb-4">Platform Status</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold">Platform Status</h2>
+              {healthCheckedAt && (
+                <span className="text-xs text-gray-500">checked {healthCheckedAt}</span>
+              )}
+            </div>
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <div className={`w-2 h-2 rounded-full animate-pulse ${
+                    healthDown ? 'bg-red-400' : health?.status === 'degraded' ? 'bg-amber-400' : 'bg-emerald-400'
+                  }`} />
                   <span className="text-sm text-gray-300">API Server</span>
                 </div>
-                <span className="text-xs text-emerald-400 font-medium">Operational</span>
+                <span className={`text-xs font-medium ${
+                  healthDown ? 'text-red-400' : health?.status === 'degraded' ? 'text-amber-400' : 'text-emerald-400'
+                }`}>
+                  {healthDown ? 'Down' : health?.status === 'degraded' ? 'Degraded' : 'Operational'}
+                </span>
               </div>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <div className={`w-2 h-2 rounded-full ${
+                    health?.checks?.database === 'ok' ? 'bg-emerald-400' : 'bg-gray-500'
+                  }`} />
+                  <span className="text-sm text-gray-300">Database</span>
+                </div>
+                <span className={`text-xs font-medium ${
+                  health?.checks?.database === 'ok' ? 'text-emerald-400' : 'text-gray-500'
+                }`}>
+                  {health?.checks?.database === 'ok' ? 'Connected' : 'Unknown'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className={`w-2 h-2 rounded-full ${
+                    health?.checks?.redis === 'ok' ? 'bg-emerald-400' : 'bg-gray-500'
+                  }`} />
+                  <span className="text-sm text-gray-300">Redis</span>
+                </div>
+                <span className={`text-xs font-medium ${
+                  health?.checks?.redis === 'ok' ? 'text-emerald-400' : 'text-gray-500'
+                }`}>
+                  {health?.checks?.redis === 'ok' ? 'Connected' : 'Unavailable'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className={`w-2 h-2 rounded-full ${
+                    isConnected ? 'bg-emerald-400 animate-pulse' : 'bg-red-400'
+                  }`} />
                   <span className="text-sm text-gray-300">WebSocket</span>
                 </div>
-                <span className="text-xs text-emerald-400 font-medium">Connected</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                  <span className="text-sm text-gray-300">Task Queue</span>
-                </div>
-                <span className="text-xs text-emerald-400 font-medium">Healthy</span>
+                <span className={`text-xs font-medium ${isConnected ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {isConnected ? 'Connected' : 'Offline'}
+                </span>
               </div>
             </div>
           </div>

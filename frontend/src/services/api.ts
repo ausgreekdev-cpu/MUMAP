@@ -40,6 +40,13 @@ export const authAPI = {
   register: (email: string, username: string, password: string) =>
     api.post('/auth/register', { email, username, password }),
   getMe: () => api.get('/auth/me'),
+  updateProfile: (data: { username?: string; email?: string }) =>
+    api.put('/auth/profile', data),
+  changePassword: (current_password: string, new_password: string) =>
+    api.put('/auth/password', { current_password, new_password }),
+  getPreferences: () => api.get('/auth/preferences'),
+  updatePreferences: (data: Record<string, boolean>) =>
+    api.put('/auth/preferences', data),
 };
 
 // Agents API
