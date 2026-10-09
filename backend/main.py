@@ -7,7 +7,7 @@ import logging
 
 from .config import settings
 from .database import init_db
-from .routers import auth_router, agents_router, tasks_router, websocket_router, execution_router, usage_router, organizations_router, marketplace_router
+from .routers import auth_router, agents_router, tasks_router, websocket_router, execution_router, usage_router, organizations_router, marketplace_router, audit_router
 from .services.metrics import metrics, generate_latest
 from .services.cache import cache
 
@@ -125,6 +125,7 @@ app.include_router(execution_router)
 app.include_router(usage_router)
 app.include_router(organizations_router)
 app.include_router(marketplace_router)
+app.include_router(audit_router)
 
 
 @app.get("/", tags=["System"])

@@ -1,9 +1,20 @@
 import json
 from typing import Optional, Any
 from datetime import datetime
+from fastapi import Request
 from sqlalchemy.orm import Session
 
 from ..models.user import AuditLog
+
+
+def request_context(request: Request) -> dict:
+    """Extract endpoint/method/ip/user-agent for AuditLogger.log kwargs."""
+    return {
+        "endpoint": request.url.path,
+        "method": request.method,
+        "ip_address": request.client.host if request.client else None,
+        "user_agent": request.headers.get("user-agent"),
+    }
 
 
 class AuditLogger:

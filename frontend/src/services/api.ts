@@ -47,6 +47,10 @@ export const authAPI = {
   getPreferences: () => api.get('/auth/preferences'),
   updatePreferences: (data: Record<string, boolean>) =>
     api.put('/auth/preferences', data),
+  listApiKeys: () => api.get('/auth/api-keys'),
+  createApiKey: (data: { name: string; scopes?: string[]; expires_at?: string }) =>
+    api.post('/auth/api-keys', data),
+  deleteApiKey: (id: number) => api.delete(`/auth/api-keys/${id}`),
 };
 
 // Agents API

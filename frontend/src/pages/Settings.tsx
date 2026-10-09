@@ -10,6 +10,17 @@ interface Preferences {
   weekly_summary: boolean;
 }
 
+interface ApiKey {
+  id: number;
+  name: string;
+  prefix: string;
+  scopes: string[];
+  is_active: boolean;
+  last_used_at: string | null;
+  expires_at: string | null;
+  created_at: string;
+}
+
 const PREFERENCE_ITEMS: { key: keyof Preferences; label: string; description: string }[] = [
   { key: 'task_completed', label: 'Task completed', description: 'Get notified when a task finishes' },
   { key: 'task_failed', label: 'Task failed', description: 'Get notified when a task fails' },
@@ -33,6 +44,12 @@ export function Settings() {
 
   const [prefs, setPrefs] = useState<Preferences | null>(null);
 
+  const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
+  const [newKeyName, setNewKeyName] = useState('');
+  const [isGeneratingKey, setIsGeneratingKey] = useState(false);
+  const [freshKey, setFreshKey] = useState<{ key: string; name: string } | null>(null);
+  const [revokingKeyId, setRevokingKeyId] = useState<number | null>(null);
+
   useEffect(() => {
     if (user) {
       setUsername(user.username);
@@ -45,6 +62,14 @@ export function Settings() {
       .getPreferences()
       .then((res) => setPrefs(res.data))
       .catch(() => toast('error', 'Failed to load notification preferences'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    authAPI
+      .listApiKeys()
+      .then((res) => setApiKeys(res.data))
+      .catch(() => toast('error', 'Failed to load API keys'));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -107,6 +132,50 @@ export function Settings() {
     } catch (error) {
       if (previous) setPrefs(previous);
       toast('error', errorDetail(error, 'Failed to save preference'));
+    }
+  };
+
+  const handleCreateApiKey = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newKeyName.trim()) {
+      toast('error', 'Key name is required');
+      return;
+    }
+    setIsGeneratingKey(true);
+    try {
+      const res = await authAPI.createApiKey({ name: newKeyName.trim() });
+      setFreshKey({ key: res.data.key, name: res.data.name });
+      setNewKeyName('');
+      const list = await authAPI.listApiKeys();
+      setApiKeys(list.data);
+      toast('success', 'API key generated');
+    } catch (error) {
+      toast('error', errorDetail(error, 'Failed to generate API key'));
+    } finally {
+      setIsGeneratingKey(false);
+    }
+  };
+
+  const handleRevokeApiKey = async (keyId: number) => {
+    setRevokingKeyId(keyId);
+    try {
+      await authAPI.deleteApiKey(keyId);
+      setApiKeys((keys) => keys.filter((k) => k.id !== keyId));
+      toast('success', 'API key revoked');
+    } catch (error) {
+      toast('error', errorDetail(error, 'Failed to revoke API key'));
+    } finally {
+      setRevokingKeyId(null);
+    }
+  };
+
+  const handleCopyKey = async () => {
+    if (!freshKey) return;
+    try {
+      await navigator.clipboard.writeText(freshKey.key);
+      toast('success', 'API key copied to clipboard');
+    } catch {
+      toast('error', 'Copy failed — select the key manually');
     }
   };
 
@@ -192,6 +261,7 @@ export function Settings() {
 
       {/* Security */}
       {activeTab === 'security' && (
+        <>
         <div className="card max-w-2xl">
           <h2 className="text-lg font-semibold mb-6">Security Settings</h2>
 
@@ -242,6 +312,82 @@ export function Settings() {
             </div>
           </form>
         </div>
+
+        <div className="card max-w-2xl">
+          <h2 className="text-lg font-semibold mb-2">API Keys</h2>
+          <p className="text-sm text-gray-400 mb-6">
+            Authenticate programmatically by sending the key in the <code className="text-indigo-300">X-API-Key</code> header.
+          </p>
+
+          {freshKey && (
+            <div className="mb-6 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30">
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-amber-200">
+                    Copy the key for “{freshKey.name}” now — it won’t be shown again.
+                  </p>
+                  <p className="mt-2 text-sm font-mono break-all text-amber-100 select-all">{freshKey.key}</p>
+                </div>
+                <div className="flex flex-col gap-2 shrink-0">
+                  <button type="button" onClick={handleCopyKey} className="btn btn-secondary text-xs">
+                    Copy
+                  </button>
+                  <button type="button" onClick={() => setFreshKey(null)} className="btn text-xs">
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <form onSubmit={handleCreateApiKey} className="flex gap-3 mb-6">
+            <input
+              type="text"
+              value={newKeyName}
+              onChange={(e) => setNewKeyName(e.target.value)}
+              className="input flex-1"
+              placeholder="Key name (e.g. CI pipeline)"
+              maxLength={100}
+              required
+            />
+            <button type="submit" disabled={isGeneratingKey} className="btn btn-primary disabled:opacity-50">
+              {isGeneratingKey ? 'Generating...' : 'Generate API Key'}
+            </button>
+          </form>
+
+          {apiKeys.length === 0 ? (
+            <p className="text-sm text-gray-500">No API keys yet.</p>
+          ) : (
+            <ul className="space-y-3">
+              {apiKeys.map((k) => (
+                <li
+                  key={k.id}
+                  className="flex items-center justify-between gap-4 p-4 rounded-xl bg-white/5 border border-white/5"
+                >
+                  <div className="min-w-0">
+                    <p className="font-medium truncate">{k.name}</p>
+                    <p className="text-xs text-gray-400 font-mono">{k.prefix}…</p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Created {new Date(k.created_at).toLocaleDateString()}
+                      {k.last_used_at
+                        ? ` · Last used ${new Date(k.last_used_at).toLocaleString()}`
+                        : ' · Never used'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleRevokeApiKey(k.id)}
+                    disabled={revokingKeyId === k.id}
+                    className="btn text-xs text-red-400 hover:text-red-300 border border-red-500/30 hover:border-red-500/50 disabled:opacity-50 shrink-0"
+                  >
+                    {revokingKeyId === k.id ? 'Revoking...' : 'Revoke'}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        </>
       )}
 
       {/* Notifications */}

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 from typing import Optional
 from datetime import datetime
@@ -7,6 +7,7 @@ from ..database import get_db
 from ..models.task import Task, TaskStatus, TaskLog
 from ..schemas.task import TaskCreate, TaskUpdate, TaskResponse, TaskListResponse, TaskLogResponse, TaskAssignRequest
 from ..services.auth import get_current_user
+from ..services.audit import get_audit_logger, request_context
 from ..services.orchestrator import OrchestratorService
 from ..services.websocket import manager
 
@@ -42,6 +43,7 @@ def list_tasks(
 @router.post("/", response_model=TaskResponse)
 async def create_task(
     task_data: TaskCreate,
+    request: Request,
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
@@ -54,6 +56,15 @@ async def create_task(
         creator_id=current_user.id,
     )
     db.add(task)
+    db.flush()
+    get_audit_logger(db).log(
+        action="CREATE",
+        resource_type="task",
+        resource_id=task.id,
+        user_id=current_user.id,
+        new_values={"name": task.name, "priority": task.priority},
+        **request_context(request),
+    )
     db.commit()
     db.refresh(task)
     
@@ -107,6 +118,7 @@ def update_task(
 @router.delete("/{task_id}")
 def delete_task(
     task_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
@@ -117,7 +129,16 @@ def delete_task(
     if task.status not in [TaskStatus.PENDING.value, TaskStatus.CANCELLED.value]:
         raise HTTPException(status_code=400, detail="Can only delete pending or cancelled tasks")
     
+    old_values = {"name": task.name, "status": task.status}
     db.delete(task)
+    get_audit_logger(db).log(
+        action="DELETE",
+        resource_type="task",
+        resource_id=task_id,
+        user_id=current_user.id,
+        old_values=old_values,
+        **request_context(request),
+    )
     db.commit()
     
     return {"message": "Task deleted"}

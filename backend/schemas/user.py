@@ -47,3 +47,26 @@ class Token(BaseModel):
     access_token: str
     token_type: str
     user: UserResponse
+
+
+class APIKeyCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    scopes: list[str] = Field(default_factory=list)
+    expires_at: Optional[datetime] = None
+
+
+class APIKeyResponse(BaseModel):
+    id: int
+    name: str
+    prefix: str
+    scopes: list[str]
+    is_active: bool
+    last_used_at: Optional[datetime] = None
+    expires_at: Optional[datetime] = None
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class APIKeyCreated(APIKeyResponse):
+    key: str

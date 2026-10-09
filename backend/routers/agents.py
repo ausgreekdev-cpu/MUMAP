@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 from typing import Optional
 
@@ -6,6 +6,7 @@ from ..database import get_db
 from ..models.agent import Agent, AgentStatus
 from ..schemas.agent import AgentCreate, AgentUpdate, AgentResponse, AgentListResponse, VALID_MODEL_PROVIDERS
 from ..services.auth import get_current_user
+from ..services.audit import get_audit_logger, request_context
 from ..services.websocket import manager
 
 router = APIRouter(prefix="/agents", tags=["agents"])
@@ -44,6 +45,7 @@ def list_agents(
 @router.post("/", response_model=AgentResponse)
 def create_agent(
     agent_data: AgentCreate,
+    request: Request,
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
@@ -67,6 +69,15 @@ def create_agent(
         max_tokens=agent_data.max_tokens,
     )
     db.add(agent)
+    db.flush()
+    get_audit_logger(db).log(
+        action="CREATE",
+        resource_type="agent",
+        resource_id=agent.id,
+        user_id=current_user.id,
+        new_values={"name": agent.name, "role": agent.role},
+        **request_context(request),
+    )
     db.commit()
     db.refresh(agent)
     
@@ -111,6 +122,7 @@ def update_agent(
 @router.delete("/{agent_id}")
 def delete_agent(
     agent_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
@@ -118,7 +130,16 @@ def delete_agent(
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
     
+    old_values = {"name": agent.name, "role": agent.role}
     db.delete(agent)
+    get_audit_logger(db).log(
+        action="DELETE",
+        resource_type="agent",
+        resource_id=agent_id,
+        user_id=current_user.id,
+        old_values=old_values,
+        **request_context(request),
+    )
     db.commit()
     
     return {"message": "Agent deleted"}
