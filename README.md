@@ -1,5 +1,7 @@
 # Multi-Agent Orchestration Platform
 
+[![CI](https://github.com/ausgreekdev-cpu/MUMAP/actions/workflows/ci.yml/badge.svg)](https://github.com/ausgreekdev-cpu/MUMAP/actions/workflows/ci.yml)
+
 A modern, full-stack platform for building and coordinating AI agents that work together.
 
 ## Quick Install
@@ -62,14 +64,44 @@ npm run dev
 
 ### Dashboard
 - Real-time statistics
-- Agent availability
+- Live platform health card (API/DB/Redis/WebSocket)
 - Task queue overview
-- Activity monitoring
+- WebSocket-driven live refresh
+
+### Marketplace
+- Install agent templates with one click
+- Category browsing and search
+- Pre-configured agent blueprints
+
+### Settings
+- Profile and password management
+- Notification preferences (persisted per user)
+- API key management (generate/revoke, shown once)
+- Activity log with filters
 
 ### Security
 - JWT authentication
+- API-key authentication via `X-API-Key` header
+- Audit logging of auth, agent, and task actions
 - Role-based access
-- Secure API endpoints
+
+## Authentication
+
+Every endpoint accepts either a JWT bearer token or an API key:
+
+```bash
+# JWT (POST /auth/login to obtain)
+curl http://localhost:8000/agents \
+  -H "Authorization: Bearer YOUR_TOKEN"
+
+# API key (create at Settings → Security, or POST /auth/api-keys)
+curl http://localhost:8000/agents \
+  -H "X-API-Key: ma_your_key_here"
+
+# Your own activity trail
+curl http://localhost:8000/audit/logs \
+  -H "X-API-Key: ma_your_key_here"
+```
 
 ## Architecture
 
@@ -92,9 +124,12 @@ npm run dev
 
 ## API Examples
 
+> Backend routes have **no** `/api` prefix when talking to uvicorn directly;
+> the production nginx strips it (`location /api/` proxies to the backend).
+
 ### Create an Agent
 ```bash
-curl -X POST http://localhost:8000/api/agents \
+curl -X POST http://localhost:8000/agents \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"name": "DataAnalyst", "capabilities": ["analysis", "statistics"]}'
@@ -102,7 +137,7 @@ curl -X POST http://localhost:8000/api/agents \
 
 ### Create a Task
 ```bash
-curl -X POST http://localhost:8000/api/tasks \
+curl -X POST http://localhost:8000/tasks \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"name": "Analyze sales data", "priority": "high", "required_capabilities": ["analysis"]}'
@@ -110,7 +145,7 @@ curl -X POST http://localhost:8000/api/tasks \
 
 ### Auto-Assign Task
 ```bash
-curl -X POST http://localhost:8000/api/tasks/1/auto-assign \
+curl -X POST http://localhost:8000/tasks/1/auto-assign \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
@@ -127,13 +162,24 @@ CORS_ORIGINS=http://localhost:5173,http://localhost:3000
 ## Development
 
 ```bash
-# Run tests
+# Backend tests (pytest suite — runs against a temp SQLite DB)
+python -m pytest backend/tests -q
+
+# Legacy core-framework tests
 python tests/test_agents.py
+
+# Frontend typecheck + build
+cd frontend
+npx tsc --noEmit
+npm run build
 
 # Run examples
 python examples/simple_agents.py
 python examples/research_team.py
 ```
+
+CI runs the pytest suite, legacy tests, and frontend typecheck/build on every
+push and pull request to `main` (`.github/workflows/ci.yml`).
 
 ## Project Structure
 

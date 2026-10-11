@@ -133,4 +133,10 @@ export const marketplaceAPI = {
   installed: () => api.get('/marketplace/installed'),
 };
 
+// Audit API
+export const auditAPI = {
+  list: (params?: { action?: string; resource_type?: string; skip?: number; limit?: number }) =>
+    api.get('/audit/logs', { params }),
+};
+
 export default api;

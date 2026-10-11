@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { authAPI } from '../services/api';
+import { authAPI, auditAPI } from '../services/api';
 import { useToast } from '../components/Toast';
 
 interface Preferences {
@@ -20,6 +20,28 @@ interface ApiKey {
   expires_at: string | null;
   created_at: string;
 }
+
+interface AuditEntry {
+  id: number;
+  action: string;
+  resource_type: string;
+  resource_id: number | null;
+  endpoint: string | null;
+  method: string | null;
+  ip_address: string | null;
+  success: boolean;
+  error_message: string | null;
+  created_at: string;
+}
+
+const AUDIT_PAGE_SIZE = 20;
+
+const AUDIT_ACTION_BADGES: Record<string, string> = {
+  CREATE: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
+  UPDATE: 'bg-blue-500/15 text-blue-300 border-blue-500/30',
+  DELETE: 'bg-red-500/15 text-red-300 border-red-500/30',
+  LOGIN: 'bg-purple-500/15 text-purple-300 border-purple-500/30',
+};
 
 const PREFERENCE_ITEMS: { key: keyof Preferences; label: string; description: string }[] = [
   { key: 'task_completed', label: 'Task completed', description: 'Get notified when a task finishes' },
@@ -50,6 +72,12 @@ export function Settings() {
   const [freshKey, setFreshKey] = useState<{ key: string; name: string } | null>(null);
   const [revokingKeyId, setRevokingKeyId] = useState<number | null>(null);
 
+  const [auditEntries, setAuditEntries] = useState<AuditEntry[]>([]);
+  const [auditTotal, setAuditTotal] = useState(0);
+  const [auditAction, setAuditAction] = useState('');
+  const [auditPage, setAuditPage] = useState(0);
+  const [isLoadingAudit, setIsLoadingAudit] = useState(false);
+
   useEffect(() => {
     if (user) {
       setUsername(user.username);
@@ -72,6 +100,24 @@ export function Settings() {
       .catch(() => toast('error', 'Failed to load API keys'));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (activeTab !== 'activity') return;
+    setIsLoadingAudit(true);
+    auditAPI
+      .list({
+        action: auditAction || undefined,
+        skip: auditPage * AUDIT_PAGE_SIZE,
+        limit: AUDIT_PAGE_SIZE,
+      })
+      .then((res) => {
+        setAuditEntries(res.data.items);
+        setAuditTotal(res.data.total);
+      })
+      .catch(() => toast('error', 'Failed to load activity log'))
+      .finally(() => setIsLoadingAudit(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, auditAction, auditPage]);
 
   const errorDetail = (error: unknown, fallback: string) => {
     const apiErr = error as { response?: { data?: { detail?: unknown } } };
@@ -189,7 +235,7 @@ export function Settings() {
 
       {/* Tabs */}
       <div className="flex gap-1 p-1 bg-white/5 rounded-xl w-fit">
-        {['profile', 'security', 'notifications'].map((tab) => (
+        {['profile', 'security', 'notifications', 'activity'].map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -418,6 +464,101 @@ export function Settings() {
                   </label>
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+      )}
+      {/* Activity */}
+      {activeTab === 'activity' && (
+        <div className="card max-w-3xl">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h2 className="text-lg font-semibold">Activity Log</h2>
+              <p className="text-sm text-gray-400">Your recent actions on the platform</p>
+            </div>
+            <select
+              value={auditAction}
+              onChange={(e) => {
+                setAuditAction(e.target.value);
+                setAuditPage(0);
+              }}
+              className="input w-auto text-sm"
+            >
+              <option value="">All actions</option>
+              <option value="CREATE">Create</option>
+              <option value="UPDATE">Update</option>
+              <option value="DELETE">Delete</option>
+              <option value="LOGIN">Login</option>
+            </select>
+          </div>
+
+          {isLoadingAudit ? (
+            <div className="flex items-center justify-center py-10">
+              <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : auditEntries.length === 0 ? (
+            <p className="text-sm text-gray-500 py-6">No activity recorded yet.</p>
+          ) : (
+            <ul className="space-y-2">
+              {auditEntries.map((entry) => (
+                <li
+                  key={entry.id}
+                  className="flex items-center justify-between gap-4 p-3 rounded-xl bg-white/5 border border-white/5"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span
+                      className={`px-2 py-0.5 text-xs font-medium rounded-full border shrink-0 ${
+                        AUDIT_ACTION_BADGES[entry.action] || 'bg-gray-500/15 text-gray-300 border-gray-500/30'
+                      }`}
+                    >
+                      {entry.action}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-sm truncate">
+                        {entry.resource_type}
+                        {entry.resource_id != null ? ` #${entry.resource_id}` : ''}
+                        {!entry.success && (
+                          <span className="text-red-400 ml-2">failed — {entry.error_message}</span>
+                        )}
+                      </p>
+                      <p className="text-xs text-gray-500 truncate">
+                        {entry.method} {entry.endpoint}
+                        {entry.ip_address ? ` · ${entry.ip_address}` : ''}
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-xs text-gray-500 shrink-0">
+                    {new Date(entry.created_at).toLocaleString()}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {auditTotal > AUDIT_PAGE_SIZE && (
+            <div className="flex items-center justify-between mt-6">
+              <span className="text-xs text-gray-500">
+                {auditPage * AUDIT_PAGE_SIZE + 1}–
+                {Math.min((auditPage + 1) * AUDIT_PAGE_SIZE, auditTotal)} of {auditTotal}
+              </span>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setAuditPage((p) => Math.max(0, p - 1))}
+                  disabled={auditPage === 0 || isLoadingAudit}
+                  className="btn text-xs disabled:opacity-40"
+                >
+                  Previous
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAuditPage((p) => p + 1)}
+                  disabled={(auditPage + 1) * AUDIT_PAGE_SIZE >= auditTotal || isLoadingAudit}
+                  className="btn text-xs disabled:opacity-40"
+                >
+                  Next
+                </button>
+              </div>
             </div>
           )}
         </div>
