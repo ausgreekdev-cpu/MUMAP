@@ -181,6 +181,22 @@ python examples/research_team.py
 CI runs the pytest suite, legacy tests, and frontend typecheck/build on every
 push and pull request to `main` (`.github/workflows/ci.yml`).
 
+### Database migrations (Alembic)
+
+Schema changes are tracked with Alembic (`alembic/` at the repo root). The
+baseline revision covers the full schema; fresh dev databases are still
+created automatically on startup (`create_all`), and existing `create_all`-era
+databases should be stamped **once**:
+
+```bash
+make migrate           # alembic upgrade head
+make revision msg="add thing"   # autogenerate from model changes
+make db-stamp          # mark an existing DB as migrated (no data changes)
+```
+
+When you change models: edit the model, `make revision msg="..."`, review the
+generated file in `alembic/versions/`, then `make migrate`.
+
 ## Project Structure
 
 ```

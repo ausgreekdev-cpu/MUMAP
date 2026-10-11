@@ -31,6 +31,13 @@ jobs:
       - name: Run legacy tests
         run: python tests/test_agents.py
 
+      - name: Verify migrations apply
+        env:
+          DATABASE_URL: sqlite:////tmp/ci_migrate.db
+        run: |
+          python -m alembic upgrade head
+          python -c "import sqlite3; c=sqlite3.connect('/tmp/ci_migrate.db'); n=c.execute(\"select count(*) from sqlite_master where type='table'\").fetchone()[0]; assert n >= 19, n; print('tables:', n)"
+
   frontend:
     name: Frontend typecheck + build
     runs-on: ubuntu-latest
