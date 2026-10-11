@@ -43,12 +43,15 @@ class WebhookService:
     def __init__(self, db: Session):
         self.db = db
     
-    def get_active_webhooks(self, event: str) -> list[Webhook]:
-        """Get all active webhooks for a specific event."""
-        webhooks = self.db.query(Webhook).filter(
-            Webhook.is_active == True
-        ).all()
-        
+    def get_active_webhooks(
+        self, event: str, user_id: Optional[int] = None
+    ) -> list[Webhook]:
+        """Get active webhooks for an event, optionally scoped to a user."""
+        query = self.db.query(Webhook).filter(Webhook.is_active == True)
+        if user_id is not None:
+            query = query.filter(Webhook.user_id == user_id)
+        webhooks = query.all()
+
         return [w for w in webhooks if event in (w.events or [])]
     
     def create_signature(self, payload: str, secret: str) -> str:
@@ -123,9 +126,11 @@ class WebhookService:
             logger.error(f"Webhook error: {str(e)}")
             return False
     
-    async def trigger_event(self, event: str, data: dict) -> int:
-        """Trigger event and send to all matching webhooks."""
-        webhooks = self.get_active_webhooks(event)
+    async def trigger_event(
+        self, event: str, data: dict, user_id: Optional[int] = None
+    ) -> int:
+        """Trigger event and send to matching webhooks (optionally user-scoped)."""
+        webhooks = self.get_active_webhooks(event, user_id=user_id)
         
         sent_count = 0
         for webhook in webhooks:

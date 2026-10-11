@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 from typing import Optional
 from datetime import datetime
@@ -9,9 +9,30 @@ from ..schemas.task import TaskCreate, TaskUpdate, TaskResponse, TaskListRespons
 from ..services.auth import get_current_user
 from ..services.audit import get_audit_logger, request_context
 from ..services.orchestrator import OrchestratorService
+from ..services.webhook import WebhookEvent, WebhookService
 from ..services.websocket import manager
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
+
+
+def _schedule_webhook(
+    background_tasks: BackgroundTasks, db: Session, event: str, task: Task, **extra
+) -> None:
+    if not task.creator_id:
+        return
+    data = {
+        "id": task.id,
+        "name": task.name,
+        "status": task.status,
+        "priority": task.priority,
+        "creator_id": task.creator_id,
+        "assigned_to": task.assigned_to,
+    }
+    data.update(extra)
+    service = WebhookService(db)
+    background_tasks.add_task(
+        service.trigger_event, event, data, user_id=task.creator_id
+    )
 
 
 @router.get("/", response_model=TaskListResponse)
@@ -44,6 +65,7 @@ def list_tasks(
 async def create_task(
     task_data: TaskCreate,
     request: Request,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
@@ -75,6 +97,7 @@ async def create_task(
         "status": task.status,
         "event": "created"
     })
+    _schedule_webhook(background_tasks, db, WebhookEvent.TASK_CREATED, task)
     
     return task
 
@@ -148,6 +171,7 @@ def delete_task(
 async def assign_task(
     task_id: int,
     assign_data: TaskAssignRequest,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
@@ -166,6 +190,7 @@ async def assign_task(
         "assigned_to": task.assigned_to,
         "event": "assigned"
     })
+    _schedule_webhook(background_tasks, db, WebhookEvent.TASK_ASSIGNED, task)
     
     return task
 
@@ -173,6 +198,7 @@ async def assign_task(
 @router.post("/{task_id}/auto-assign", response_model=TaskResponse)
 async def auto_assign_task(
     task_id: int,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
@@ -190,6 +216,7 @@ async def auto_assign_task(
         "assigned_to": task.assigned_to,
         "event": "assigned"
     })
+    _schedule_webhook(background_tasks, db, WebhookEvent.TASK_ASSIGNED, task)
     
     return task
 
@@ -197,6 +224,7 @@ async def auto_assign_task(
 @router.post("/{task_id}/complete", response_model=TaskResponse)
 async def complete_task(
     task_id: int,
+    background_tasks: BackgroundTasks,
     output_data: dict = {},
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user)
@@ -215,6 +243,7 @@ async def complete_task(
         "status": task.status,
         "event": "completed"
     })
+    _schedule_webhook(background_tasks, db, WebhookEvent.TASK_COMPLETED, task)
     
     return task
 
@@ -222,6 +251,7 @@ async def complete_task(
 @router.post("/{task_id}/fail", response_model=TaskResponse)
 async def fail_task(
     task_id: int,
+    background_tasks: BackgroundTasks,
     error_message: str = "Task failed",
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user)
@@ -240,6 +270,9 @@ async def fail_task(
         "status": task.status,
         "event": "failed"
     })
+    _schedule_webhook(
+        background_tasks, db, WebhookEvent.TASK_FAILED, task, error=error_message
+    )
     
     return task
 
@@ -247,6 +280,7 @@ async def fail_task(
 @router.post("/{task_id}/cancel", response_model=TaskResponse)
 async def cancel_task(
     task_id: int,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
@@ -264,6 +298,7 @@ async def cancel_task(
         "status": task.status,
         "event": "cancelled"
     })
+    _schedule_webhook(background_tasks, db, WebhookEvent.TASK_CANCELLED, task)
     
     return task
 

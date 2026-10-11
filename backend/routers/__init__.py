@@ -7,6 +7,7 @@ from .usage import router as usage_router
 from .organizations import router as organizations_router
 from .marketplace import router as marketplace_router
 from .audit import router as audit_router
+from .webhooks import router as webhooks_router
 
 __all__ = [
     "auth_router",
@@ -18,4 +19,5 @@ __all__ = [
     "organizations_router",
     "marketplace_router",
     "audit_router",
+    "webhooks_router",
 ]

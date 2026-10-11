@@ -14,12 +14,25 @@ _TMP = tempfile.mkdtemp(prefix="map_tests_")
 os.environ["DATABASE_URL"] = f"sqlite:///{_TMP}/test.db"
 os.environ.pop("OPENAI_API_KEY", None)
 os.environ.pop("ANTHROPIC_API_KEY", None)
+os.environ["RATE_LIMIT_ENABLED"] = "False"
 
 import pytest
 from fastapi.testclient import TestClient
 
 from backend.main import app
 from backend.services.llm.adapter import LLMAdapter
+
+
+@pytest.fixture()
+def rate_limit_enabled():
+    from backend.config import settings
+    from backend.services.cache import RateLimiter
+
+    RateLimiter._memory_windows.clear()
+    settings.RATE_LIMIT_ENABLED = True
+    yield
+    settings.RATE_LIMIT_ENABLED = False
+    RateLimiter._memory_windows.clear()
 
 
 @pytest.fixture(scope="session")

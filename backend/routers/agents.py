@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 from typing import Optional
 
@@ -7,9 +7,30 @@ from ..models.agent import Agent, AgentStatus
 from ..schemas.agent import AgentCreate, AgentUpdate, AgentResponse, AgentListResponse, VALID_MODEL_PROVIDERS
 from ..services.auth import get_current_user
 from ..services.audit import get_audit_logger, request_context
+from ..services.webhook import WebhookEvent, WebhookService
 from ..services.websocket import manager
 
 router = APIRouter(prefix="/agents", tags=["agents"])
+
+
+def _schedule_webhook(
+    background_tasks: BackgroundTasks, db: Session, event: str, agent: Agent
+) -> None:
+    if not agent.owner_id:
+        return
+    service = WebhookService(db)
+    background_tasks.add_task(
+        service.trigger_event,
+        event,
+        {
+            "id": agent.id,
+            "name": agent.name,
+            "role": agent.role,
+            "status": agent.status,
+            "owner_id": agent.owner_id,
+        },
+        user_id=agent.owner_id,
+    )
 
 
 def _validate_provider(provider: Optional[str]) -> None:
@@ -43,9 +64,10 @@ def list_agents(
 
 
 @router.post("/", response_model=AgentResponse)
-def create_agent(
+async def create_agent(
     agent_data: AgentCreate,
     request: Request,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
@@ -80,6 +102,7 @@ def create_agent(
     )
     db.commit()
     db.refresh(agent)
+    _schedule_webhook(background_tasks, db, WebhookEvent.AGENT_CREATED, agent)
     
     return agent
 
@@ -120,9 +143,10 @@ def update_agent(
 
 
 @router.delete("/{agent_id}")
-def delete_agent(
+async def delete_agent(
     agent_id: int,
     request: Request,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
@@ -131,6 +155,7 @@ def delete_agent(
         raise HTTPException(status_code=404, detail="Agent not found")
     
     old_values = {"name": agent.name, "role": agent.role}
+    owner_id = agent.owner_id
     db.delete(agent)
     get_audit_logger(db).log(
         action="DELETE",
@@ -141,6 +166,14 @@ def delete_agent(
         **request_context(request),
     )
     db.commit()
+    if owner_id:
+        service = WebhookService(db)
+        background_tasks.add_task(
+            service.trigger_event,
+            WebhookEvent.AGENT_DELETED,
+            {"id": agent_id, "name": old_values["name"], "role": old_values["role"], "owner_id": owner_id},
+            user_id=owner_id,
+        )
     
     return {"message": "Agent deleted"}
 
@@ -149,6 +182,7 @@ def delete_agent(
 async def update_agent_status(
     agent_id: int,
     status: str,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
@@ -168,5 +202,6 @@ async def update_agent_status(
         "name": agent.name,
         "status": agent.status
     })
+    _schedule_webhook(background_tasks, db, WebhookEvent.AGENT_STATUS_CHANGED, agent)
     
     return {"message": "Status updated"}

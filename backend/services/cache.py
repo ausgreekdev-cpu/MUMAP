@@ -1,5 +1,7 @@
 import json
 import hashlib
+import threading
+import time
 from typing import Any, Optional, Callable
 from functools import wraps
 from datetime import timedelta
@@ -96,40 +98,83 @@ class RedisCache:
 
 
 class RateLimiter:
-    """Token bucket rate limiter using Redis."""
-    
+    """Fixed-window rate limiter: Redis when available, in-memory otherwise."""
+
+    _memory_lock = threading.Lock()
+    _memory_windows: dict[str, tuple[float, int]] = {}
+
     def __init__(self):
         self.cache = RedisCache()
-    
+
+    def _memory_hit(
+        self, key: str, max_requests: int, window: int
+    ) -> tuple[bool, float]:
+        """Record one hit; return (limited, retry_after_seconds)."""
+        now = time.monotonic()
+        with RateLimiter._memory_lock:
+            stored = RateLimiter._memory_windows.get(key)
+            if stored is None or now - stored[0] >= window:
+                start, count = now, 1
+            else:
+                start, count = stored
+                count += 1
+            RateLimiter._memory_windows[key] = (start, count)
+            if len(RateLimiter._memory_windows) > 5000:
+                RateLimiter._memory_windows = {
+                    k: v
+                    for k, v in RateLimiter._memory_windows.items()
+                    if now - v[0] < window
+                }
+        retry_after = max(1, int(window - (now - start)))
+        return count > max_requests, retry_after
+
     def is_rate_limited(
-        self, 
-        key: str, 
-        max_requests: int = None, 
-        window: int = None
+        self,
+        key: str,
+        max_requests: int = None,
+        window: int = None,
     ) -> bool:
         """Check if request should be rate limited."""
-        if not self.cache.enabled:
-            return False
-        
         max_requests = max_requests or settings.RATE_LIMIT_REQUESTS
         window = window or settings.RATE_LIMIT_WINDOW
-        
-        try:
-            current = self.cache.increment(f"ratelimit:{key}")
-            if current == 1:
-                self.cache.expire(f"ratelimit:{key}", window)
-            return current > max_requests
-        except Exception:
-            return False
-    
+
+        if self.cache.enabled:
+            try:
+                current = self.cache.increment(f"ratelimit:{key}")
+                if current == 1:
+                    self.cache.expire(f"ratelimit:{key}", window)
+                return current > max_requests
+            except Exception:
+                return False
+
+        limited, _ = self._memory_hit(key, max_requests, window)
+        return limited
+
+    def check(self, key: str, max_requests: int = None, window: int = None):
+        """Return (limited, retry_after_seconds)."""
+        max_requests = max_requests or settings.RATE_LIMIT_REQUESTS
+        window = window or settings.RATE_LIMIT_WINDOW
+
+        if self.cache.enabled:
+            return self.is_rate_limited(key, max_requests, window), window
+
+        return self._memory_hit(key, max_requests, window)
+
     def get_remaining(self, key: str, max_requests: int = None, window: int = None) -> int:
         """Get remaining requests in current window."""
-        if not self.cache.enabled:
-            return max_requests or settings.RATE_LIMIT_REQUESTS
-        
         max_requests = max_requests or settings.RATE_LIMIT_REQUESTS
-        current = self.cache.get(f"ratelimit:{key}")
-        return max(0, max_requests - (current or 0))
+        window = window or settings.RATE_LIMIT_WINDOW
+
+        if self.cache.enabled:
+            current = self.cache.get(f"ratelimit:{key}")
+            return max(0, max_requests - (current or 0))
+
+        now = time.monotonic()
+        with RateLimiter._memory_lock:
+            stored = RateLimiter._memory_windows.get(key)
+            if stored is None or now - stored[0] >= window:
+                return max_requests
+            return max(0, max_requests - stored[1])
 
 
 def rate_limit(max_requests: int = None, window: int = None):

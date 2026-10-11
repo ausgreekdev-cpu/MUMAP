@@ -7,7 +7,7 @@ import logging
 
 from .config import settings
 from .database import init_db
-from .routers import auth_router, agents_router, tasks_router, websocket_router, execution_router, usage_router, organizations_router, marketplace_router, audit_router
+from .routers import auth_router, agents_router, tasks_router, websocket_router, execution_router, usage_router, organizations_router, marketplace_router, audit_router, webhooks_router
 from .services.metrics import metrics, generate_latest
 from .services.cache import cache
 
@@ -77,12 +77,17 @@ app.add_middleware(
     allow_credentials=settings.CORS_ALLOW_CREDENTIALS,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["X-Request-ID", "X-RateLimit-Remaining"],
+    expose_headers=["X-Request-ID", "X-RateLimit-Remaining", "Retry-After"],
 )
 
 # Trusted hosts (production)
 if settings.ENVIRONMENT == "production":
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=["*"])
+
+# Rate limiting (in-memory fallback; uses Redis when available)
+from .middleware import RateLimitMiddleware
+
+app.add_middleware(RateLimitMiddleware)
 
 
 @app.middleware("http")
@@ -126,6 +131,7 @@ app.include_router(usage_router)
 app.include_router(organizations_router)
 app.include_router(marketplace_router)
 app.include_router(audit_router)
+app.include_router(webhooks_router)
 
 
 @app.get("/", tags=["System"])
