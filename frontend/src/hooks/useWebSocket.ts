@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { WebSocketMessage } from '../types';
+import { getConfiguredServer } from '../services/config';
 
 export function useWebSocket(token: string | null) {
   const [isConnected, setIsConnected] = useState(false);
@@ -9,9 +10,17 @@ export function useWebSocket(token: string | null) {
   const connect = useCallback(() => {
     if (!token) return;
 
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/ws/auth?token=${token}`;
-    
+    let wsUrl: string;
+    const server = getConfiguredServer();
+    if (server) {
+      const url = new URL(server);
+      const protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+      wsUrl = `${protocol}//${url.host}/ws/auth?token=${token}`;
+    } else {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      wsUrl = `${protocol}//${window.location.host}/ws/auth?token=${token}`;
+    }
+
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
 

@@ -62,3 +62,18 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Verify PWA artifacts
+        run: |
+          test -f dist/manifest.webmanifest
+          test -f dist/sw.js
+          test -f dist/icons/icon-192.png
+          test -f dist/icons/icon-512.png
+          python3 -c "import json; m=json.load(open('dist/manifest.webmanifest')); assert m['display']=='standalone'; print('PWA manifest OK:', m['name'])"
+
+      - name: Upload PWA dist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pwa-dist
+          path: frontend/dist
+          if-no-files-found: error

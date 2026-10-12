@@ -210,6 +210,20 @@ generated file in `alembic/versions/`, then `make migrate`.
 └── install.sh        # Quick install script
 ```
 
+## PWA & Microsoft Store
+
+The frontend is an installable PWA (manifest + service worker). Users can also
+run the packaged client from the Microsoft Store — a paid, one-time-purchase
+client that talks to a backend you (or they) self-host. Full submission steps:
+[MICROSOFT_STORE_GUIDE.md](./MICROSOFT_STORE_GUIDE.md).
+
+- **First-run server setup**: the `/setup` screen validates and stores a
+  server URL (`GET {url}/health`) in `localStorage` (`mumap_api_url`); the app
+  then talks to `{server}/api/...` over HTTPS
+- **Privacy policy**: live at `/privacy` (also required by Partner Center)
+- **CI**: every green build uploads a ready-to-host `pwa-dist` artifact
+  (GitHub Actions run → Artifacts)
+
 ## License
 
 MIT

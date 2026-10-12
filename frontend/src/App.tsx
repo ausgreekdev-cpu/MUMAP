@@ -7,6 +7,8 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { Layout } from './components/Layout';
 import { Login } from './pages/Login';
 import { Register } from './pages/Register';
+import { Setup } from './pages/Setup';
+import { Privacy } from './pages/Privacy';
 import { Dashboard } from './pages/Dashboard';
 import { Agents } from './pages/Agents';
 import { AgentDetail } from './pages/AgentDetail';
@@ -57,6 +59,8 @@ function App() {
             {/* Public routes */}
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/setup" element={<Setup />} />
+            <Route path="/privacy" element={<Privacy />} />
 
             {/* Protected routes */}
             <Route

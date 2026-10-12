@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { getConfiguredServer } from '../services/config';
 
 export function Login() {
   const [email, setEmail] = useState('');
@@ -245,6 +246,17 @@ export function Login() {
             Don't have an account?{' '}
             <Link to="/register" className="text-[#8b5cf6] hover:text-[#a855f7] font-medium transition-colors">
               Create account
+            </Link>
+          </p>
+
+          <p className="mt-4 text-center text-xs text-gray-600">
+            Server: {getConfiguredServer() ?? 'this site'} ·{' '}
+            <Link to="/setup" className="text-gray-500 hover:text-gray-400">
+              Change
+            </Link>{' '}
+            ·{' '}
+            <Link to="/privacy" className="text-gray-500 hover:text-gray-400">
+              Privacy
             </Link>
           </p>
         </div>
