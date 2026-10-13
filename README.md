@@ -217,12 +217,18 @@ run the packaged client from the Microsoft Store — a paid, one-time-purchase
 client that talks to a backend you (or they) self-host. Full submission steps:
 [MICROSOFT_STORE_GUIDE.md](./MICROSOFT_STORE_GUIDE.md).
 
+- **Live PWA**: every push to `main` auto-deploys to GitHub Pages at
+  `https://ausgreekdev-cpu.github.io/MUMAP/` (built with `BASE_PATH=/MUMAP/`);
+  that URL is the PWABuilder input for Store packaging
 - **First-run server setup**: the `/setup` screen validates and stores a
   server URL (`GET {url}/health`) in `localStorage` (`mumap_api_url`); the app
-  then talks to `{server}/api/...` over HTTPS
+  then talks to `{server}/api/...` over HTTPS (visitors with no server
+  configured are redirected there automatically)
 - **Privacy policy**: live at `/privacy` (also required by Partner Center)
+- **Store listing copy**: paste-ready fields in
+  [store/STORE_LISTING.md](./store/STORE_LISTING.md)
 - **CI**: every green build uploads a ready-to-host `pwa-dist` artifact
-  (GitHub Actions run → Artifacts)
+  (GitHub Actions run → Artifacts), built at root base `/` for generic hosting
 
 ## License
 

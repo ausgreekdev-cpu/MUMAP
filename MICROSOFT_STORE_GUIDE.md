@@ -10,7 +10,7 @@ client.
 Microsoft Store (paid MSIX client)
         │  opens
         ▼
-Your hosted PWA URL  (static frontend dist — Netlify / GitHub Pages / your domain)
+GitHub Pages PWA  (auto-deployed: https://ausgreekdev-cpu.github.io/MUMAP/)
         │  talks to a user-configured API URL (/setup screen, localStorage)
         ▼
 User's own MUMAP server  (docker-compose, HTTPS, CORS_ORIGINS set)
@@ -23,35 +23,41 @@ data touches you — see `frontend/src/pages/Privacy.tsx`.
 ## Prerequisites
 
 1. **Microsoft Partner account** — https://partner.microsoft.com, one-time $19
-2. **A public HTTPS URL for the frontend** (the PWABuilder input):
-   - Netlify: drag & drop `frontend/dist` → app.netlify.com
-   - GitHub Pages: publish `frontend/dist` to a `gh-pages` branch
-   - Your own domain behind any static host / nginx
+2. **A public HTTPS URL for the frontend** — already handled: every push to
+   `main` auto-deploys to **https://ausgreekdev-cpu.github.io/MUMAP/** via the
+   `deploy-pages` CI job. (Alternatives: Netlify drag-and-drop of
+   `frontend/dist`, or your own domain.)
 3. **Icon set** — already generated in `store/` (StoreLogo, Square44/150,
    Wide310, Large310 at 1× and 2× scales)
-4. **Privacy policy URL** — host `frontend/src/pages/Privacy.tsx` content (it's
-   also live at `{pwa-url}/privacy`) and use that URL in Partner Center
+4. **Privacy policy URL** — use **https://ausgreekdev-cpu.github.io/MUMAP/privacy**
+5. **Listing copy** — paste-ready fields in `store/STORE_LISTING.md`
 
 ## Step 1 — Build the PWA
+
+CI does this for you. The `deploy-pages` job runs:
 
 ```bash
 cd frontend
 npm ci
-npm run build          # produces dist/ with manifest.webmanifest + sw.js
+BASE_PATH=/MUMAP/ npm run build   # dist/ with manifest + sw + 404.html
 ```
 
-Sanity-check `dist/`: it must contain `manifest.webmanifest`, `sw.js`, and
-`icons/`. The manifest name is **MUMAP — Multi-Agent Platform**, display
-`standalone`, theme `#0a0a0f`.
+Sanity-check `dist/`: it must contain `manifest.webmanifest`, `sw.js`,
+`404.html`, and `icons/` — manifest `start_url`/`scope` = `/MUMAP/`, name
+**MUMAP — Multi-Agent Platform**, display `standalone`, theme `#0a0a0f`.
 
 ## Step 2 — Host the frontend
 
-Deploy `frontend/dist` to your public HTTPS URL, e.g.
-`https://mumap.example.com` (this is the URL you will give PWABuilder).
+Automatic (this repo): the `deploy-pages` job publishes `dist/` to GitHub
+Pages on every green push to `main`. Manual option: deploy `frontend/dist`
+(`BASE_PATH=/` build, or the `pwa-dist` CI artifact) to any static host.
+
+Your PWABuilder input URL is **`https://ausgreekdev-cpu.github.io/MUMAP/`**.
 
 ## Step 3 — PWABuilder package
 
-1. Open https://www.pwabuilder.com and enter your public URL → **Start**
+1. Open https://www.pwabuilder.com and enter
+   **https://ausgreekdev-cpu.github.io/MUMAP/** → **Start**
 2. Fix anything flagged on the report card (manifest + icons are pre-wired)
 3. **Package For Stores** → **Windows** → **Generate Package**
 4. Enter your Partner Center identity (publisher ID from Partner Center)
@@ -60,14 +66,15 @@ Deploy `frontend/dist` to your public HTTPS URL, e.g.
 ## Step 4 — Partner Center submission
 
 1. **Apps and games → New product** → reserve the name (e.g. `MUMAP`)
-2. **Pricing**: set your one-time paid price (you choose; e.g. $19.99–$49.99
-   fits a developer tool). Microsoft keeps 30% (85% after the first $10k/year
-   in some programs — check current Partner Center terms)
+2. **Pricing**: set your one-time paid price (placeholder in
+   `store/STORE_LISTING.md` suggests $24.99). Microsoft keeps 30% (85% after
+   the first $10k/year in some programs — check current Partner Center terms)
 3. **Properties**: age rating questionnaire, category **Developer tools** /
    **Productivity**, notes "self-hosted backend required"
-4. **Store listings**: copy from the README features section; upload
-   screenshots (**1280×764** recommended, plus phone sizes if you want phone
-   visibility — the UI is responsive)
+4. **Store listings**: paste from `store/STORE_LISTING.md` (name, short/long
+   description, keywords, what's new); upload screenshots (**1280×764**
+   recommended, plus phone sizes if you want phone visibility — the UI is
+   responsive)
 5. **Availability**: markets, hidden/visible
 6. **Upload** the `.msixbundle`, complete submission → certification (usually
    a few days)

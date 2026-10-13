@@ -54,7 +54,7 @@ function App() {
       <AuthProvider>
         <ToastProvider>
           <WebSocketProvider>
-          <BrowserRouter>
+          <BrowserRouter basename={import.meta.env.BASE_URL}>
           <Routes>
             {/* Public routes */}
             <Route path="/login" element={<Login />} />

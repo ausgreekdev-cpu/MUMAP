@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { User } from '../types';
 import { authAPI } from '../services/api';
+import { getConfiguredServer, isSameOriginChosen } from '../services/config';
 
 interface AuthContextType {
   user: User | null;
@@ -20,6 +21,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    const ensureReachable = async (): Promise<boolean> => {
+      if (getConfiguredServer() || isSameOriginChosen()) return true;
+      const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+      const path = window.location.pathname;
+      const rel = path.startsWith(base) ? path.slice(base.length) : path;
+      if (rel === '/setup' || rel === 'setup') return false;
+      try {
+        const res = await fetch('/health');
+        if (!res.ok) throw new Error('unreachable');
+        return true;
+      } catch {
+        window.location.replace(`${base}/setup`);
+        return false;
+      }
+    };
+
     const validateSession = async () => {
       const storedUser = localStorage.getItem('user');
       if (storedUser && token) {
@@ -37,7 +54,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       setIsLoading(false);
     };
-    validateSession();
+
+    ensureReachable().then((ok) => {
+      if (ok) validateSession();
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

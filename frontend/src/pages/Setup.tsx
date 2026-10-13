@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { getConfiguredServer, healthUrlFor, setApiUrl } from '../services/config';
+import { getConfiguredServer, healthUrlFor, setApiUrl, markSameOrigin } from '../services/config';
 
 export function Setup() {
   const [serverUrl, setServerUrl] = useState(getConfiguredServer() ?? '');
@@ -32,7 +32,7 @@ export function Setup() {
         throw new Error(`Server responded ${res.status}`);
       }
       setApiUrl(trimmed);
-      window.location.assign('/login');
+      window.location.assign(`${import.meta.env.BASE_URL}login`);
     } catch {
       setError(
         'Could not reach the server. Check the URL, that it is running, and that CORS allows this origin (CORS_ORIGINS).'
@@ -44,7 +44,8 @@ export function Setup() {
 
   const handleSameOrigin = () => {
     localStorage.removeItem('mumap_api_url');
-    window.location.assign('/login');
+    markSameOrigin();
+    window.location.assign(import.meta.env.BASE_URL);
   };
 
   return (
