@@ -220,6 +220,13 @@ client that talks to a backend you (or they) self-host. Full submission steps:
 - **Live PWA**: every push to `main` auto-deploys to GitHub Pages at
   `https://ausgreekdev-cpu.github.io/MUMAP/` (built with `BASE_PATH=/MUMAP/`);
   that URL is the PWABuilder input for Store packaging
+- **Install as an app** (works today, no Store needed):
+  1. Open `https://ausgreekdev-cpu.github.io/MUMAP/` in **Edge or Chrome**
+  2. Browser menu (`…`) → **Apps → Install this site as an app** (or the
+     install icon in the address bar)
+  3. On first run the `/setup` screen asks for your server URL — the app then
+     runs in its own window, launchable from the taskbar
+  4. iOS Safari: Share → **Add to Home Screen** (same PWA)
 - **First-run server setup**: the `/setup` screen validates and stores a
   server URL (`GET {url}/health`) in `localStorage` (`mumap_api_url`); the app
   then talks to `{server}/api/...` over HTTPS (visitors with no server

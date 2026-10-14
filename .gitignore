@@ -48,3 +48,7 @@ uploads/
 
 # Docker
 docker/.env
+
+# OAuth / credential files (never commit)
+client_secret_*.json
+*secret*.json

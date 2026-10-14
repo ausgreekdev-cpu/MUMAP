@@ -259,6 +259,12 @@ export function Login() {
               Privacy
             </Link>
           </p>
+
+          {!window.matchMedia?.('(display-mode: standalone)').matches && (
+            <p className="mt-2 text-center text-xs text-gray-700">
+              Tip: install this app — browser menu → <em className="text-gray-600 not-italic">Install app</em>
+            </p>
+          )}
         </div>
       </div>
     </div>

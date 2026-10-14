@@ -32,6 +32,30 @@ data touches you — see `frontend/src/pages/Privacy.tsx`.
 4. **Privacy policy URL** — use **https://ausgreekdev-cpu.github.io/MUMAP/privacy**
 5. **Listing copy** — paste-ready fields in `store/STORE_LISTING.md`
 
+### If account creation is blocked
+
+Partner Center onboarding is flaky; work through this checklist before
+escalating:
+
+1. Use a **personal Microsoft account** (Outlook/Hotmail), not a work/school
+   account — Individual enrollment rejects the wrong account type
+2. Fresh **incognito window**, latest **Edge or Chrome**, **disable
+   ad-blockers/VPN/proxies** (they break the enrollment scripts)
+3. Your Microsoft account profile **name/address/phone must match your ID
+   exactly** — mismatch triggers an instant "Microsoft runs on trust… request
+   was blocked" rejection
+4. Retry via the direct link:
+   `partner.microsoft.com/dashboard/account/v3/enrollment/introduction`
+5. If rejected, note the **reference / transaction / correlation ID** in the
+   error and open a Partner Center support ticket — backend blocks (e.g. the
+   known `AlternativeBusinessContact` individual-account bug) can only be
+   cleared by Microsoft
+6. **Do not retry repeatedly in one day** — repeated attempts extend the
+   risk-based block window
+
+Meanwhile the app stays installable without the Store (see README →
+"Install as an app"), so distribution isn't blocked on this step.
+
 ## Step 1 — Build the PWA
 
 CI does this for you. The `deploy-pages` job runs:
