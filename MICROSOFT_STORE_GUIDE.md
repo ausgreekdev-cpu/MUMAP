@@ -25,8 +25,11 @@ data touches you — see `frontend/src/pages/Privacy.tsx`.
 1. **Microsoft Partner account** — https://partner.microsoft.com, one-time $19
 2. **A public HTTPS URL for the frontend** — already handled: every push to
    `main` auto-deploys to **https://ausgreekdev-cpu.github.io/MUMAP/** via the
-   `deploy-pages` CI job. (Alternatives: Netlify drag-and-drop of
-   `frontend/dist`, or your own domain.)
+   `deploy-pages` CI job. (Alternatives: Netlify — connect the repo and
+   `netlify.toml` handles it, or drag-and-drop a **root-base** `frontend/dist`
+   from a plain `npm run build` / the `pwa-dist` CI artifact. Never upload the
+   `/MUMAP/` Pages build to Netlify — its asset paths start with `/MUMAP/`
+   and the site renders a white screen.)
 3. **Icon set** — already generated in `store/` (StoreLogo, Square44/150,
    Wide310, Large310 at 1× and 2× scales)
 4. **Privacy policy URL** — use **https://ausgreekdev-cpu.github.io/MUMAP/privacy**

@@ -236,6 +236,9 @@ client that talks to a backend you (or they) self-host. Full submission steps:
   [store/STORE_LISTING.md](./store/STORE_LISTING.md)
 - **CI**: every green build uploads a ready-to-host `pwa-dist` artifact
   (GitHub Actions run → Artifacts), built at root base `/` for generic hosting
+- **Netlify**: connect the repo (build config in `netlify.toml`) or drag-and-drop
+  the root-base `dist` / `pwa-dist` artifact — do **not** upload the `/MUMAP/`
+  Pages build, or the site white-screens
 
 ## License
 

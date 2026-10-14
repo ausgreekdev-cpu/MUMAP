@@ -30,6 +30,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const res = await fetch('/health');
         if (!res.ok) throw new Error('unreachable');
+        const contentType = res.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) throw new Error('not a MUMAP server');
         return true;
       } catch {
         window.location.replace(`${base}/setup`);

@@ -1,0 +1,13 @@
+# Netlify: connect this repo and it just works.
+# Drag-and-drop users: upload a ROOT-BASE build (plain `npm run build` in
+# frontend/, or the `pwa-dist` CI artifact) — not the /MUMAP/ Pages build.
+
+[build]
+  base = "frontend"
+  command = "npm run build"
+  publish = "dist"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
